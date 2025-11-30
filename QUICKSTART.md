@@ -2,6 +2,33 @@
 
 Schnelle Anleitung zum Starten des Fritz!Box Monitoring Systems.
 
+## 🍎 macOS mit Colima (Empfohlen)
+
+Wenn du Colima statt Docker Desktop nutzt:
+
+### Schritt 0: Colima einrichten
+```bash
+# Colima installieren
+brew install colima
+
+# Automatisches Setup (empfohlen)
+make colima-setup
+
+# Oder manuell
+./setup-colima.sh --cpu 4 --memory 6 --disk 50
+```
+
+**Colima-Befehle:**
+```bash
+make colima-status    # Status prüfen
+make colima-stop      # Beenden (wenn nicht mehr nötig)
+make colima-logs      # Logs anschauen
+```
+
+Dann weitermachen mit Schritt 1 unten.
+
+---
+
 ## 🚀 Schritt 1: Vorbereitung (5 Minuten)
 
 ### Schritt 1.1: Repository klonen
@@ -17,7 +44,8 @@ cd fritz.box-monitoring
 docker --version
 docker-compose --version
 
-# Unter macOS: Docker Desktop muss gestartet sein
+# Unter macOS: Falls Colima läuft, sollte alles funktionieren
+# Wenn nicht: make colima-setup
 ```
 
 ### Schritt 1.3: Environment einrichten
@@ -48,7 +76,7 @@ make start    # Services starten
 ```
 
 ### Oder einzeln
-```bash
+```bash```bash
 # Images bauen
 docker-compose build
 

@@ -1,7 +1,13 @@
-.PHONY: help install build up down logs test lint format clean restart health
+.PHONY: help install build up down logs test lint format clean restart health colima-setup colima-start colima-stop colima-status
 
 help:
 	@echo "Fritz!Box Monitoring System - Available Commands"
+	@echo ""
+	@echo "Colima Setup (macOS):"
+	@echo "  make colima-setup    - Setup Colima Docker engine"
+	@echo "  make colima-start    - Start Colima"
+	@echo "  make colima-stop     - Stop Colima"
+	@echo "  make colima-status   - Check Colima status"
 	@echo ""
 	@echo "Setup:"
 	@echo "  make install      - Install Poetry dependencies"
@@ -180,3 +186,49 @@ info:
 	@echo "  - InfluxDB:            :8086"
 	@echo "  - Node Exporter:       :9100"
 	@echo "  - Alertmanager:        :9093"
+
+# Colima Docker Engine (macOS)
+colima-setup:
+	@echo "Setting up Colima Docker Engine..."
+	@chmod +x ./setup-colima.sh
+	@./setup-colima.sh
+
+colima-setup-verbose:
+	@chmod +x ./setup-colima.sh
+	@VERBOSE=true ./setup-colima.sh
+
+colima-setup-python:
+	@echo "Setting up Colima using Python script..."
+	@chmod +x ./setup-colima.py
+	@python3 ./setup-colima.py
+
+colima-start:
+	@echo "Starting Colima..."
+	@colima start
+
+colima-stop:
+	@echo "Stopping Colima..."
+	@colima stop
+
+colima-restart:
+	@echo "Restarting Colima..."
+	@colima restart
+
+colima-status:
+	@echo "Colima Status:"
+	@colima status
+
+colima-logs:
+	@echo "Colima Logs:"
+	@colima logs
+
+colima-delete:
+	@echo "WARNING: This will delete the Colima VM and all data!"
+	@read -p "Are you sure? (y/N) " -n 1 -r; \
+	echo; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		colima delete; \
+	fi
+
+colima-shell:
+	@colima ssh
