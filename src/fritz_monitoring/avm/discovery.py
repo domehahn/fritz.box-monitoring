@@ -353,6 +353,9 @@ class MeshDiscovery:
                     # Get IP from mesh topology if available
                     node_ip = mesh_mac_to_ip.get(mac_addr, "")
                     
+                    # Get link speeds for this node
+                    link_speeds = node_mac_to_link_speeds.get(mac_addr.upper(), {'rx_kbps': 0, 'tx_kbps': 0})
+                    
                     node = Node(
                         name=unique_name,
                         mac=mac_addr,
@@ -360,7 +363,14 @@ class MeshDiscovery:
                         is_router=is_router,
                         is_repeater=is_repeater,
                         is_powerline=is_powerline,
-                        extra={'active': True, 'mesh_only': True, 'model': model_display_name, 'parent_uid': node_mac_to_parent_name.get(mac_addr.upper())},
+                        extra={
+                            'active': True,
+                            'mesh_only': True,
+                            'model': model_display_name,
+                            'parent_uid': node_mac_to_parent_name.get(mac_addr.upper()),
+                            'link_rx_kbps': link_speeds['rx_kbps'],
+                            'link_tx_kbps': link_speeds['tx_kbps']
+                        },
                         parent_node=None  # Will be resolved later
                     )
                     nodes_by_mac[mac_addr.upper()] = node            # Second pass: create nodes and devices with correct mappings
