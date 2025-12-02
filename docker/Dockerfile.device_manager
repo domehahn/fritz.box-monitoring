@@ -2,12 +2,16 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Poetry
+RUN pip install poetry
 
-# Copy application
-COPY src/fritz_monitoring/ /app/fritz_monitoring/
+# Copy dependency files and source
+COPY pyproject.toml poetry.lock* ./
+COPY src /app/src
+
+# Install dependencies
+RUN poetry config virtualenvs.create false \
+    && poetry install --only main --no-root --no-interaction --no-ansi
 
 # Set Python path
 ENV PYTHONPATH=/app
@@ -16,4 +20,4 @@ ENV PYTHONPATH=/app
 EXPOSE 5000
 
 # Run Flask app
-CMD ["python", "/app/fritz_monitoring/device_manager/app.py"]
+CMD ["poetry", "run", "python", "/app/src/fritz_monitoring/device_manager/app.py"]

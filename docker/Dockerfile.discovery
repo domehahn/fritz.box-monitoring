@@ -2,12 +2,16 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Poetry
+RUN pip install poetry
 
-# Copy source code
+# Copy dependency files and source
+COPY pyproject.toml poetry.lock* ./
 COPY src/ /app/src/
+
+# Install dependencies
+RUN poetry config virtualenvs.create false \
+    && poetry install --only main --no-root --no-interaction --no-ansi
 
 # Set Python path
 ENV PYTHONPATH=/app
@@ -16,4 +20,4 @@ ENV PYTHONPATH=/app
 RUN mkdir -p /prometheus/targets
 
 # Run discovery service
-CMD ["python", "/app/src/fritz_monitoring/discovery/mesh_discovery.py"]
+CMD ["poetry", "run", "python", "/app/src/fritz_monitoring/discovery/mesh_discovery.py"]

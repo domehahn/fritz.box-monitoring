@@ -2,12 +2,18 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Poetry
+RUN pip install poetry
 
-COPY src/fritz_monitoring/log_pusher.py ./
+# Copy dependency files
+COPY pyproject.toml poetry.lock* ./
+
+# Install dependencies
+RUN poetry config virtualenvs.create false \
+    && poetry install --only main --no-root --no-interaction --no-ansi
+
+COPY src/fritz_monitoring/log_pusher.py .
 
 ENV PYTHONUNBUFFERED=1
 
-CMD ["python", "log_pusher.py"]
+CMD ["poetry", "run", "python", "log_pusher.py"]
