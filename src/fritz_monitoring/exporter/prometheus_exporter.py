@@ -184,6 +184,20 @@ class FritzPrometheusExporter:
             ["name", "mac", "type"],
             registry=self.registry,
         )
+        
+        self.node_link_rx_kbps = Gauge(
+            "fritz_node_link_rx_kbps",
+            "Current download rate in kbps for this mesh node's links",
+            ["name", "mac", "type"],
+            registry=self.registry,
+        )
+        
+        self.node_link_tx_kbps = Gauge(
+            "fritz_node_link_tx_kbps",
+            "Current upload rate in kbps for this mesh node's links",
+            ["name", "mac", "type"],
+            registry=self.registry,
+        )
 
         # Log metrics
         self.log_total = Gauge(
@@ -440,6 +454,20 @@ class FritzPrometheusExporter:
                 mac=node.mac,
                 type=node_type
             ).set(node_traffic[node.mac]['tx'])
+            
+            # Export link speed metrics (current rates in kbps)
+            link_rx_kbps = node.extra.get('link_rx_kbps', 0) if node.extra else 0
+            link_tx_kbps = node.extra.get('link_tx_kbps', 0) if node.extra else 0
+            self.node_link_rx_kbps.labels(
+                name=node.name,
+                mac=node.mac,
+                type=node_type
+            ).set(link_rx_kbps)
+            self.node_link_tx_kbps.labels(
+                name=node.name,
+                mac=node.mac,
+                type=node_type
+            ).set(link_tx_kbps)
 
     def update_log_metrics(self, log_stats: dict) -> None:
         """Update log-related metrics."""

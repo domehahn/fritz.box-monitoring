@@ -107,22 +107,37 @@ class MeshDiscovery:
                 # Maps node MAC -> parent node name (upstream connection)
                 node_mac_to_parent_name = {}
                 node_uid_to_mac = {}  # Map UID to MAC
+                # Track link speeds per node (sum of all connected links)
+                node_mac_to_link_speeds = {}  # MAC -> {'rx_kbps': int, 'tx_kbps': int}
+                
                 for node_info in mesh_topology.get('nodes', []):
                     node_uid = node_info.get('uid', '')
                     mac_addr = node_info.get('device_mac_address', '').upper()
                     if node_uid and mac_addr:
                         node_uid_to_mac[node_uid] = mac_addr
+                        # Initialize link speed counters
+                        if mac_addr not in node_mac_to_link_speeds:
+                            node_mac_to_link_speeds[mac_addr] = {'rx_kbps': 0, 'tx_kbps': 0}
                 
                 for node_info in mesh_topology.get('nodes', []):
                     this_node_uid = node_info.get('uid', '')
                     this_node_mac = node_info.get('device_mac_address', '').upper()
                     
-                    # Look for upstream connection in node_interfaces
+                    # Look for upstream connection in node_interfaces and aggregate link speeds
                     for interface in node_info.get('node_interfaces', []):
                         for link in interface.get('node_links', []):
                             # Link connects node_1_uid <-> node_2_uid
                             node_1_uid = link.get('node_1_uid', '')
                             node_2_uid = link.get('node_2_uid', '')
+                            
+                            # Get link speeds (in kbps)
+                            cur_rx = link.get('cur_data_rate_rx', 0) or 0
+                            cur_tx = link.get('cur_data_rate_tx', 0) or 0
+                            
+                            # Add speeds to this node
+                            if this_node_mac and this_node_mac in node_mac_to_link_speeds:
+                                node_mac_to_link_speeds[this_node_mac]['rx_kbps'] += cur_rx
+                                node_mac_to_link_speeds[this_node_mac]['tx_kbps'] += cur_tx
                             
                             # Find which one is the upstream node (parent)
                             parent_uid = None
@@ -393,6 +408,9 @@ class MeshDiscovery:
                     # Update existing node or create new one
                     parent_uid = node_mac_to_parent_name.get(mac_upper)
                     
+                    # Get link speeds for this node
+                    link_speeds = node_mac_to_link_speeds.get(mac_upper, {'rx_kbps': 0, 'tx_kbps': 0})
+                    
                     if mac_upper in nodes_by_mac:
                         # Update existing mesh-only node with host data
                         node = nodes_by_mac[mac_upper]
@@ -400,6 +418,8 @@ class MeshDiscovery:
                         node.extra['active'] = active
                         node.extra['model'] = model_display_name
                         node.extra['parent_uid'] = parent_uid
+                        node.extra['link_rx_kbps'] = link_speeds['rx_kbps']
+                        node.extra['link_tx_kbps'] = link_speeds['tx_kbps']
                     else:
                         # Create new node from host
                         node = Node(
@@ -409,7 +429,13 @@ class MeshDiscovery:
                             is_router=is_router,
                             is_repeater=is_repeater,
                             is_powerline=is_powerline,
-                            extra={'active': active, 'model': model_display_name, 'parent_uid': parent_uid},
+                            extra={
+                                'active': active,
+                                'model': model_display_name,
+                                'parent_uid': parent_uid,
+                                'link_rx_kbps': link_speeds['rx_kbps'],
+                                'link_tx_kbps': link_speeds['tx_kbps']
+                            },
                             parent_node=None  # Will be resolved later
                         )
                         nodes_by_mac[mac_upper] = node
@@ -453,6 +479,9 @@ class MeshDiscovery:
                     else:
                         connected_node = mesh_name_to_unique_name.get(connected_node_mesh_name, connected_node_mesh_name)
                     
+                    # Get traffic statistics for this device
+                    traffic_stats = self.client.get_device_stats(mac) if mac else {'rx_bytes': 0, 'tx_bytes': 0}
+                    
                     device = Device(
                         name=name,
                         mac=mac,
@@ -460,8 +489,8 @@ class MeshDiscovery:
                         online=active,
                         interface_type=interface_type,
                         connected_node=connected_node,
-                        rx_bytes_total=None,
-                        tx_bytes_total=None,
+                        rx_bytes_total=traffic_stats.get('rx_bytes', 0),
+                        tx_bytes_total=traffic_stats.get('tx_bytes', 0),
                         extra={'interface': interface_type, 'mapping': mapping_source}
                     )
                     devices.append(device)
