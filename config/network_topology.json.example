@@ -1,0 +1,15 @@
+{
+  "static_ip_to_repeater": {
+    "192.168.1.50": "Living-Room-Repeater",
+    "192.168.1.51": "Bedroom-Repeater"
+  },
+  "manual_hierarchy": {
+    "AA:BB:CC:DD:EE:01": null,
+    "AA:BB:CC:DD:EE:02": "fritz.box",
+    "AA:BB:CC:DD:EE:03": "fritz.box"
+  },
+  "model_name_mapping": {
+    "fritz.box": "FRITZ!Box 7590",
+    "fritz.repeater": "FRITZ!Repeater 6000"
+  }
+}

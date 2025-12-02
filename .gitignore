@@ -22,15 +22,12 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+*.log
 
-# Poetry
-poetry.lock
-dist/
-
-# Virtual environments
+# Virtual Environment
 venv/
-env/
 ENV/
+env/
 .venv
 
 # IDE
@@ -41,24 +38,37 @@ ENV/
 *~
 .DS_Store
 
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
+# Grafana
+config/grafana/data/
+config/grafana/plugins/
+config/grafana/provisioning/alerting/
+grafana.db
 
-# Logs
-logs/
-*.log
-
-# Environment variables
-.env
-.env.local
+# Prometheus
+config/prometheus/data/
 
 # Docker
 .dockerignore
 
-# Data
-data/
-*.db
-*.sqlite
+# Environment variables
+.env
+.env.local
+*.local
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Fritz!Box credentials (if stored locally)
+fritzbox_credentials.txt
+passwords.txt
+secrets/
+
+# Network topology (contains private IPs and MACs)
+config/network_topology.json
+config/network_topology.json.backup

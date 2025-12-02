@@ -1,0 +1,19 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy source code
+COPY src/ /app/src/
+
+# Set Python path
+ENV PYTHONPATH=/app
+
+# Create directory for target files
+RUN mkdir -p /prometheus/targets
+
+# Run discovery service
+CMD ["python", "/app/src/fritz_monitoring/discovery/mesh_discovery.py"]

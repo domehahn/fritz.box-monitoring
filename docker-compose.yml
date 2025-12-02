@@ -1,143 +1,133 @@
-version: '3.8'
-
 services:
-  # Prometheus - Time series database and metrics storage
+  # Main Fritz!Box Exporter - Collects mesh topology and all device metrics
+  fritz_exporter:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.exporter
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./src:/app/src
+    restart: unless-stopped
+    networks:
+      - fritz_monitoring
+
+  # Mesh Discovery Service - Automatically discovers all mesh nodes and generates Prometheus targets
+  mesh_discovery:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.discovery
+    env_file:
+      - .env
+    environment:
+      - DISCOVERY_INTERVAL=300  # Scan every 5 minutes
+    volumes:
+      - ./src:/app/src
+      - prometheus_targets:/prometheus/targets
+    restart: unless-stopped
+    networks:
+      - fritz_monitoring
+    depends_on:
+      - fritz_exporter
+
+  # Device Manager - Web UI for managing and deleting devices
+  device_manager:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.device_manager
+    env_file:
+      - .env
+    ports:
+      - "5001:5000"
+    networks:
+      - fritz_monitoring
+    restart: unless-stopped
+    depends_on:
+      - fritz_exporter
+
   prometheus:
     image: prom/prometheus:latest
-    container_name: fritz_prometheus
-    ports:
-      - "9090:9090"
     volumes:
       - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_targets:/prometheus/targets
       - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'
     networks:
-      - fritz_network
+      - fritz_monitoring
+    depends_on:
+      - fritz_exporter
+      - mesh_discovery
     restart: unless-stopped
-    labels:
-      - "com.example.description=Prometheus monitoring"
 
-  # Grafana - Visualization and dashboards
+  loki:
+    image: grafana/loki:latest
+    volumes:
+      - ./config/loki/loki-config.yml:/etc/loki/local-config.yaml
+      - loki_data:/loki
+    ports:
+      - "3100:3100"
+    networks:
+      - fritz_monitoring
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:latest
+    volumes:
+      - ./config/promtail/promtail-config.yml:/etc/promtail/config.yml
+    ports:
+      - "9080:9080"
+      - "1514:1514/udp"
+    networks:
+      - fritz_monitoring
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+  log_pusher:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.log_pusher
+    volumes:
+      - ./src:/app/src
+    networks:
+      - fritz_monitoring
+    depends_on:
+      - fritz_exporter
+      - loki
+    restart: unless-stopped
+
   grafana:
     image: grafana/grafana:latest
-    container_name: fritz_grafana
     ports:
       - "3000:3000"
+    volumes:
+      - ./config/grafana/provisioning:/etc/grafana/provisioning
+      - grafana_data:/var/lib/grafana
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_INSTALL_PLUGINS=grafana-piechart-panel
-      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./config/grafana/provisioning:/etc/grafana/provisioning
-      - ./config/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - GF_USERS_ALLOW_SIGN_UP=false
     networks:
-      - fritz_network
+      - fritz_monitoring
     depends_on:
       - prometheus
+      - loki
     restart: unless-stopped
-    labels:
-      - "com.example.description=Grafana visualization"
-
-  # InfluxDB - Optional time series database
-  influxdb:
-    image: influxdb:2.7
-    container_name: fritz_influxdb
-    ports:
-      - "8086:8086"
-    environment:
-      - INFLUXDB_DB=fritz_monitoring
-      - INFLUXDB_ADMIN_USER=admin
-      - INFLUXDB_ADMIN_PASSWORD=influxdb_password
-      - INFLUXDB_HTTP_AUTH_ENABLED=false
-    volumes:
-      - influxdb_data:/var/lib/influxdb2
-    networks:
-      - fritz_network
-    restart: unless-stopped
-    labels:
-      - "com.example.description=InfluxDB time series database"
-
-  # Node Exporter - System metrics
-  node_exporter:
-    image: prom/node-exporter:latest
-    container_name: fritz_node_exporter
-    ports:
-      - "9100:9100"
-    command:
-      - '--path.procfs=/host/proc'
-      - '--path.sysfs=/host/sys'
-      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
-    volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /:/rootfs:ro
-    networks:
-      - fritz_network
-    restart: unless-stopped
-    labels:
-      - "com.example.description=Node Exporter for system metrics"
-
-  # Alertmanager - Alert management
-  alertmanager:
-    image: prom/alertmanager:latest
-    container_name: fritz_alertmanager
-    ports:
-      - "9093:9093"
-    volumes:
-      - ./config/alertmanager.yml:/etc/alertmanager/alertmanager.yml
-      - alertmanager_data:/alertmanager
-    command:
-      - '--config.file=/etc/alertmanager/alertmanager.yml'
-      - '--storage.path=/alertmanager'
-    networks:
-      - fritz_network
-    restart: unless-stopped
-    labels:
-      - "com.example.description=Prometheus Alertmanager"
-
-  # Fritz!Box Exporter - Custom Python exporter
-  fritz_exporter:
-    build:
-      context: .
-      dockerfile: ./docker/Dockerfile
-    container_name: fritz_exporter
-    ports:
-      - "8000:8000"
-    environment:
-      - FRITZ_HOST=${FRITZ_HOST:-192.168.178.1}
-      - FRITZ_PORT=${FRITZ_PORT:-49000}
-      - FRITZ_USERNAME=${FRITZ_USERNAME:-dslf}
-      - FRITZ_PASSWORD=${FRITZ_PASSWORD}
-      - EXPORTER_PORT=8000
-      - EXPORTER_HOST=0.0.0.0
-      - LOG_LEVEL=INFO
-      - COLLECTION_INTERVAL=60
-    volumes:
-      - ./logs:/app/logs
-    networks:
-      - fritz_network
-    depends_on:
-      - prometheus
-    restart: unless-stopped
-    labels:
-      - "com.example.description=Fritz!Box Prometheus Exporter"
 
 networks:
-  fritz_network:
+  fritz_monitoring:
     driver: bridge
 
 volumes:
   prometheus_data:
-    driver: local
+  prometheus_targets:
+  loki_data:
   grafana_data:
-    driver: local
-  influxdb_data:
-    driver: local
-  alertmanager_data:
-    driver: local

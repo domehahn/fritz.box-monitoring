@@ -1,0 +1,17 @@
+server:
+  http_listen_port: 9080
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # Listen for syslog messages (if Fritz!Box is configured to send them)
+  - job_name: fritzbox-syslog
+    syslog:
+      listen_address: 0.0.0.0:1514
+      labels:
+        job: fritzbox-syslog
+        source: fritzbox
