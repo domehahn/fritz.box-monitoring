@@ -276,9 +276,32 @@ class FritzPrometheusExporter:
         # Update device metrics
         # Build a map from node name to MAC for quick lookup
         node_name_to_mac = {n.name: n.mac for n in nodes}
+        # Build a map from node name to node object for type checking
+        node_name_to_obj = {n.name: n for n in nodes}
         
         for device in devices:
             node_mac = node_name_to_mac.get(device.connected_node, "")
+            # Determine if device is connected to a repeater or powerline
+            # Priority: router > powerline > repeater (a node can have multiple flags)
+            connected_node_obj = node_name_to_obj.get(device.connected_node)
+            if connected_node_obj:
+                # If connected to router, neither repeater nor powerline flags should be set
+                if connected_node_obj.is_router:
+                    is_repeater = "false"
+                    is_powerline = "false"
+                elif connected_node_obj.is_powerline:
+                    is_repeater = "false"
+                    is_powerline = "true"
+                elif connected_node_obj.is_repeater:
+                    is_repeater = "true"
+                    is_powerline = "false"
+                else:
+                    is_repeater = "false"
+                    is_powerline = "false"
+            else:
+                is_repeater = "false"
+                is_powerline = "false"
+            
             self.device_up.labels(
                 device.mac, 
                 device.name, 
@@ -286,8 +309,8 @@ class FritzPrometheusExporter:
                 device.connected_node or "", 
                 node_mac,
                 device.interface_type or "", 
-                "false", 
-                "false"
+                is_repeater, 
+                is_powerline
             ).set(1 if device.online else 0)
             
             if device.rx_bytes_total is not None:
@@ -298,8 +321,8 @@ class FritzPrometheusExporter:
                     device.connected_node or "", 
                     node_mac,
                     device.interface_type or "", 
-                    "false", 
-                    "false"
+                    is_repeater, 
+                    is_powerline
                 ).set(device.rx_bytes_total)
 
         # Update per-repeater counts - grouped by MAC to handle multiple repeaters with same name
