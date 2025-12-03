@@ -77,7 +77,11 @@
       "targets": [
         {
           "expr": "count(fritz_node_up{type=\"repeater\"} == 1)",
-          "refId": "A"
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
         }
       ],
       "title": "Repeater Count",
@@ -139,7 +143,11 @@
       "targets": [
         {
           "expr": "count(fritz_node_up{type=\"powerline\"} == 1)",
-          "refId": "A"
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
         }
       ],
       "title": "Powerline Count",
@@ -191,7 +199,11 @@
       "targets": [
         {
           "expr": "count(fritz_device_up == 1)",
-          "refId": "A"
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
         }
       ],
       "title": "Connected Devices",
@@ -255,7 +267,11 @@
         {
           "expr": "(rate(fritz_router_bytes_received_total[5m]) + rate(fritz_router_bytes_sent_total[5m])) / (fritz_router_max_byte_rate_up + fritz_router_max_byte_rate_down) * 100",
           "legendFormat": "Network Utilization",
-          "refId": "A"
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
         }
       ],
       "title": "Network Utilization %",
@@ -333,7 +349,11 @@
           "expr": "fritz_node_up",
           "format": "table",
           "instant": true,
-          "refId": "A"
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
         }
       ],
       "title": "Repeater & Powerline Nodes",
@@ -443,7 +463,11 @@
           "expr": "fritz_device_up",
           "format": "table",
           "instant": true,
-          "refId": "A"
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
         }
       ],
       "title": "All Connected Devices",
@@ -545,7 +569,11 @@
           "expr": "fritz_node_up{type=~\"repeater|powerline\"}",
           "instant": true,
           "legendFormat": "{{name}}",
-          "refId": "A"
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
         }
       ],
       "title": "STATUS",
@@ -600,7 +628,11 @@
       "targets": [
         {
           "expr": "max_over_time(rate(fritz_router_bytes_received_total[5m])[24h:])",
-          "refId": "A"
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
         }
       ],
       "title": "Peak Download Rate (24h)",
@@ -655,7 +687,11 @@
       "targets": [
         {
           "expr": "max_over_time(rate(fritz_router_bytes_sent_total[5m])[24h:])",
-          "refId": "A"
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
         }
       ],
       "title": "Peak Upload Rate (24h)",
@@ -746,22 +782,38 @@
         {
           "expr": "rate(fritz_router_bytes_received_total[5m])",
           "legendFormat": "Download",
-          "refId": "A"
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
         },
         {
           "expr": "rate(fritz_router_bytes_sent_total[5m])",
           "legendFormat": "Upload",
-          "refId": "B"
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
         },
         {
           "expr": "fritz_router_max_byte_rate_down",
           "legendFormat": "Link Speed (Down)",
-          "refId": "C"
+          "refId": "C",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
         },
         {
           "expr": "fritz_router_max_byte_rate_up",
           "legendFormat": "Link Speed (Up)",
-          "refId": "D"
+          "refId": "D",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
         }
       ],
       "title": "WAN Traffic (Download/Upload)",
@@ -829,7 +881,11 @@
           "expr": "fritz_repeater_connected_devices and on(mac) fritz_node_up{type=\"repeater\"} == 1",
           "instant": true,
           "legendFormat": "{{name}}",
-          "refId": "A"
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
         }
       ],
       "title": "Devices per Repeater",
@@ -896,7 +952,11 @@
           "expr": "fritz_powerline_connected_devices and on(mac) fritz_node_up{type=\"powerline\"} == 1",
           "instant": true,
           "legendFormat": "{{name}}",
-          "refId": "A"
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
         }
       ],
       "title": "Devices per Powerline",
@@ -979,7 +1039,11 @@
           "expr": "sort_desc(fritz_node_info)",
           "format": "table",
           "instant": true,
-          "refId": "A"
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
         }
       ],
       "title": "Network Hierarchy Visualization",
@@ -1110,7 +1174,11 @@
         {
           "expr": "fritz_repeater_connected_devices",
           "legendFormat": "{{name}}",
-          "refId": "A"
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
         }
       ],
       "title": "Devices per Repeater (stat)",
@@ -1163,7 +1231,11 @@
           "expr": "fritz_repeater_connected_devices",
           "format": "table",
           "instant": true,
-          "refId": "A"
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
         }
       ],
       "title": "Repeater Device Counts",
@@ -1242,7 +1314,11 @@
           "expr": "fritz_node_parent{name=~\"Repeater.*\"}",
           "format": "table",
           "instant": true,
-          "refId": "A"
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
         }
       ],
       "title": "Repeater Hierarchy Tree",
@@ -3037,7 +3113,11 @@
           "expr": "fritz_repeater_connected_devices{name=\"fritz.box\"}",
           "instant": true,
           "legendFormat": "{{name}}",
-          "refId": "A"
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          }
         }
       ],
       "title": "Devices per Router",
@@ -3060,7 +3140,7 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "PBFA97CFB590B2093"
           }
         },
         {
@@ -3069,7 +3149,7 @@
           "refId": "B",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "PBFA97CFB590B2093"
           }
         }
       ],
@@ -3127,7 +3207,7 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "PBFA97CFB590B2093"
           }
         },
         {
@@ -3136,7 +3216,7 @@
           "refId": "B",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "PBFA97CFB590B2093"
           }
         }
       ],
@@ -3194,7 +3274,7 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "PBFA97CFB590B2093"
           }
         },
         {
@@ -3203,7 +3283,7 @@
           "refId": "B",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "PBFA97CFB590B2093"
           }
         }
       ],
@@ -3261,7 +3341,7 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "PBFA97CFB590B2093"
           }
         },
         {
@@ -3270,7 +3350,7 @@
           "refId": "B",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "PBFA97CFB590B2093"
           }
         }
       ],
@@ -3328,7 +3408,7 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "PBFA97CFB590B2093"
           }
         },
         {
@@ -3337,7 +3417,7 @@
           "refId": "B",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "PBFA97CFB590B2093"
           }
         }
       ],
@@ -3395,7 +3475,7 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "PBFA97CFB590B2093"
           }
         },
         {
@@ -3404,7 +3484,7 @@
           "refId": "B",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "PBFA97CFB590B2093"
           }
         }
       ],
@@ -3462,7 +3542,7 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "PBFA97CFB590B2093"
           }
         },
         {
@@ -3471,7 +3551,7 @@
           "refId": "B",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "PBFA97CFB590B2093"
           }
         }
       ],
@@ -3529,7 +3609,7 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "PBFA97CFB590B2093"
           }
         },
         {
@@ -3538,7 +3618,7 @@
           "refId": "B",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "PBFA97CFB590B2093"
           }
         }
       ],
@@ -3596,7 +3676,7 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "PBFA97CFB590B2093"
           }
         },
         {
@@ -3605,7 +3685,7 @@
           "refId": "B",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "PBFA97CFB590B2093"
           }
         }
       ],
@@ -3663,7 +3743,7 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "PBFA97CFB590B2093"
           }
         },
         {
@@ -3672,7 +3752,7 @@
           "refId": "B",
           "datasource": {
             "type": "prometheus",
-            "uid": "prometheus"
+            "uid": "PBFA97CFB590B2093"
           }
         }
       ],
