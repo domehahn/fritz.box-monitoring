@@ -603,7 +603,7 @@
               }
             ]
           },
-          "unit": "bps"
+          "unit": "Kbits"
         },
         "overrides": []
       },
@@ -635,7 +635,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(fritz_node_rx_bytes_total{name=\"Powerline-2CB0\"}[5m]) * 8",
+          "expr": "fritz_node_link_rx_kbps{name=\"Powerline-2CB0\"}",
           "legendFormat": "RX (Download)",
           "refId": "A"
         },
@@ -644,7 +644,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(fritz_node_tx_bytes_total{name=\"Powerline-2CB0\"}[5m]) * 8",
+          "expr": "fritz_node_link_tx_kbps{name=\"Powerline-2CB0\"}",
           "legendFormat": "TX (Upload)",
           "refId": "B"
         }
@@ -704,7 +704,7 @@
               }
             ]
           },
-          "unit": "pps"
+          "unit": "Kbits"
         },
         "overrides": []
       },
@@ -736,7 +736,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(fritz_wlan_packets_received_total{job=\"repeater_f6c1\"}[5m])",
+          "expr": "fritz_node_link_rx_kbps{name=\"Repeater-F6C1\"}",
           "legendFormat": "RX (Download)",
           "refId": "A"
         },
@@ -745,7 +745,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(fritz_wlan_packets_sent_total{job=\"repeater_f6c1\"}[5m])",
+          "expr": "fritz_node_link_tx_kbps{name=\"Repeater-F6C1\"}",
           "legendFormat": "TX (Upload)",
           "refId": "B"
         }
@@ -805,7 +805,7 @@
               }
             ]
           },
-          "unit": "pps"
+          "unit": "Kbits"
         },
         "overrides": []
       },
@@ -837,7 +837,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(fritz_wlan_packets_received_total{job=\"repeater_05ef\"}[5m])",
+          "expr": "fritz_node_link_rx_kbps{name=\"Repeater-05EF\"}",
           "legendFormat": "RX (Download)",
           "refId": "A"
         },
@@ -846,7 +846,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(fritz_wlan_packets_sent_total{job=\"repeater_05ef\"}[5m])",
+          "expr": "fritz_node_link_tx_kbps{name=\"Repeater-05EF\"}",
           "legendFormat": "TX (Upload)",
           "refId": "B"
         }
@@ -906,7 +906,7 @@
               }
             ]
           },
-          "unit": "pps"
+          "unit": "Kbits"
         },
         "overrides": []
       },
@@ -938,7 +938,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(fritz_wlan_packets_received_total{job=\"repeater_cf6c\"}[5m])",
+          "expr": "fritz_node_link_rx_kbps{name=\"Repeater-CF6C\"}",
           "legendFormat": "RX (Download)",
           "refId": "A"
         },
@@ -947,7 +947,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(fritz_wlan_packets_sent_total{job=\"repeater_cf6c\"}[5m])",
+          "expr": "fritz_node_link_tx_kbps{name=\"Repeater-CF6C\"}",
           "legendFormat": "TX (Upload)",
           "refId": "B"
         }
@@ -1007,7 +1007,7 @@
               }
             ]
           },
-          "unit": "pps"
+          "unit": "Kbits"
         },
         "overrides": []
       },
@@ -1039,7 +1039,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(fritz_wlan_packets_received_total{job=\"repeater_209e\"}[5m])",
+          "expr": "fritz_node_link_rx_kbps{name=\"Repeater-209E\"}",
           "legendFormat": "RX (Download)",
           "refId": "A"
         },
@@ -1048,7 +1048,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(fritz_wlan_packets_sent_total{job=\"repeater_209e\"}[5m])",
+          "expr": "fritz_node_link_tx_kbps{name=\"Repeater-209E\"}",
           "legendFormat": "TX (Upload)",
           "refId": "B"
         }
@@ -1163,7 +1163,7 @@
               }
             ]
           },
-          "unit": "pps"
+          "unit": "Kbits"
         },
         "overrides": []
       },
@@ -1195,7 +1195,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(fritz_wlan_packets_received_total{job=\"repeater_e828\"}[5m])",
+          "expr": "fritz_node_link_rx_kbps{name=\"Repeater-E828\"}",
           "legendFormat": "RX (Download)",
           "refId": "A"
         },
@@ -1204,7 +1204,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(fritz_wlan_packets_sent_total{job=\"repeater_e828\"}[5m])",
+          "expr": "fritz_node_link_tx_kbps{name=\"Repeater-E828\"}",
           "legendFormat": "TX (Upload)",
           "refId": "B"
         }
@@ -1264,7 +1264,7 @@
               }
             ]
           },
-          "unit": "bps"
+          "unit": "Kbits"
         },
         "overrides": []
       },
@@ -1296,7 +1296,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(fritz_node_rx_bytes_total{name=\"Powerline-B590\"}[5m]) * 8",
+          "expr": "fritz_node_link_rx_kbps{name=\"Powerline-B590\"}",
           "legendFormat": "RX (Download)",
           "refId": "A"
         },
@@ -1305,7 +1305,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(fritz_node_tx_bytes_total{name=\"Powerline-B590\"}[5m]) * 8",
+          "expr": "fritz_node_link_tx_kbps{name=\"Powerline-B590\"}",
           "legendFormat": "TX (Upload)",
           "refId": "B"
         }
@@ -1365,7 +1365,7 @@
               }
             ]
           },
-          "unit": "bps"
+          "unit": "Kbits"
         },
         "overrides": []
       },
@@ -1397,7 +1397,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(fritz_node_rx_bytes_total{name=\"Powerline-BCCF\"}[5m]) * 8",
+          "expr": "fritz_node_link_rx_kbps{name=\"Powerline-BCCF\"}",
           "legendFormat": "RX (Download)",
           "refId": "A"
         },
@@ -1406,7 +1406,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(fritz_node_tx_bytes_total{name=\"Powerline-BCCF\"}[5m]) * 8",
+          "expr": "fritz_node_link_tx_kbps{name=\"Powerline-BCCF\"}",
           "legendFormat": "TX (Upload)",
           "refId": "B"
         }
@@ -1466,7 +1466,7 @@
               }
             ]
           },
-          "unit": "pps"
+          "unit": "Kbits"
         },
         "overrides": []
       },
@@ -1498,7 +1498,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(fritz_wlan_packets_received_total{job=\"repeater_fee8\"}[5m])",
+          "expr": "fritz_node_link_rx_kbps{name=\"Repeater-FEE8\"}",
           "legendFormat": "RX (Download)",
           "refId": "A"
         },
@@ -1507,7 +1507,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(fritz_wlan_packets_sent_total{job=\"repeater_fee8\"}[5m])",
+          "expr": "fritz_node_link_tx_kbps{name=\"Repeater-FEE8\"}",
           "legendFormat": "TX (Upload)",
           "refId": "B"
         }
