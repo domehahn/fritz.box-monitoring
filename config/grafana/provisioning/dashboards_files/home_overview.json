@@ -3132,14 +3132,10 @@
         },
         "query": "label_values(fritz_node_up{type=~\"repeater|powerline\"}, mac)",
         "refresh": 2,
-        "multi": true,
-        "includeAll": true,
+        "multi": false,
+        "includeAll": false,
         "allValue": null,
-        "current": {
-          "selected": true,
-          "text": "All",
-          "value": "$__all"
-        },
+        "current": {},
         "hide": 2
       },
       {
@@ -3150,7 +3146,7 @@
           "type": "prometheus",
           "uid": "prometheus"
         },
-        "query": "label_values(fritz_node_up{mac=\"$node\"}, name)",
+        "query": "label_values(fritz_node_up{type=~\"repeater|powerline\", mac=\"$node\"}, name)",
         "refresh": 2,
         "multi": false,
         "includeAll": false,
