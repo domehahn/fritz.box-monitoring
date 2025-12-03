@@ -291,7 +291,7 @@ class MeshDiscovery:
                     mac_to_unique_name[mac] = unique_name
 
             # Now map UID -> unique_name for ALL infrastructure nodes!
-            # Use mesh_mac (from topology) to create consistent unique names
+            # Find host MAC via IP matching, use it for visible names
             if mesh_topology:
                 for node_info in mesh_topology.get('nodes', []):
                     node_uid = node_info.get('uid', '')
@@ -304,35 +304,50 @@ class MeshDiscovery:
                     # Check if this is infrastructure
                     vendor_id = (node_info.get('device_vendor_class_id') or '').upper()
                     caps = node_info.get('device_capabilities') or []
+                    device_name_upper = device_name.upper()
                     
                     # Check in priority order: router > powerline > repeater
                     is_router = device_name and device_name.lower() in ('fritz.box',)
-                    is_powerline = 'POWERLINE' in vendor_id
+                    is_powerline = 'POWERLINE' in vendor_id or 'AVM1220' in device_name_upper or 'AVM1260' in device_name_upper
                     # Don't classify router or powerline as repeater, even if they have WLAN_ACCESS_POINT
                     is_repeater = ('REPEATER' in vendor_id or 'WLAN_ACCESS_POINT' in caps) and not is_powerline and not is_router
 
                     # Only map infrastructure nodes - clients will be handled via device_ip_to_node_uid
                     if is_router or is_repeater or is_powerline:
-                        # Create unique name using MESH MAC (consistent across all interfaces)
+                        # Get host MAC by finding matching host via IP address
+                        host_mac = mesh_mac  # Fallback to mesh MAC
+                        node_ip = ''
+                        for ip_info in node_info.get('ip_addresses', []):
+                            if ip_info.get('version') == 'V4':
+                                node_ip = ip_info.get('value', '').split('/')[0]
+                                if node_ip and not node_ip.startswith('169.'):
+                                    break
+                        
+                        # Find host with matching IP to get the "visible" MAC
+                        if node_ip and node_ip in ip_to_host_info:
+                            host_mac = ip_to_host_info[node_ip]['mac']
+                        
+                        # Create unique name using HOST MAC (the visible/user-facing MAC)
                         # Check in priority order: router > powerline > repeater
                         if is_router:
                             unique_name = 'fritz.box'
                         elif is_powerline:
-                            mac_suffix = mesh_mac.replace(':', '')[-4:]
+                            mac_suffix = host_mac.replace(':', '')[-4:]
                             unique_name = f"Powerline-{mac_suffix}"
                         elif is_repeater:
-                            mac_suffix = mesh_mac.replace(':', '')[-4:]
+                            mac_suffix = host_mac.replace(':', '')[-4:]
                             unique_name = f"Repeater-{mac_suffix}"
                         else:
                             # Fallback (should not happen)
-                            mac_suffix = mesh_mac.replace(':', '')[-4:]
+                            mac_suffix = host_mac.replace(':', '')[-4:]
                             unique_name = f"Node-{mac_suffix}"
                         
-                        # Store UID mapping
+                        # Store UID mapping (UID from mesh topology → unique name from host MAC)
                         uid_to_unique_name[node_uid] = unique_name
                         
-                        # Also map mesh_mac and device_name for cross-referencing
+                        # Map both mesh_mac and host_mac to unique_name for cross-referencing
                         mac_to_unique_name[mesh_mac] = unique_name
+                        mac_to_unique_name[host_mac] = unique_name
                         if device_name:
                             mesh_name_to_unique_name[device_name] = unique_name
 
