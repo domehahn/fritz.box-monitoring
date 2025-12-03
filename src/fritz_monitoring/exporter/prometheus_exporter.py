@@ -293,20 +293,22 @@ class FritzPrometheusExporter:
 
         # Update node metrics
         for node in nodes:
-            node_type = 'router' if node.is_router else ('repeater' if node.is_repeater else 'powerline')
-            is_active = node.extra.get('active', True)
-            model = node.extra.get('model', node.name)
-            parent = node.parent_node or ""
+            # Only export metrics for active nodes or router
+            if node.is_router or node.extra.get('active', True):
+                node_type = 'router' if node.is_router else ('repeater' if node.is_repeater else 'powerline')
+                is_active = node.extra.get('active', True)
+                model = node.extra.get('model', node.name)
+                parent = node.parent_node or ""
 
-            self.node_up.labels(node.name, node.mac, node_type).set(1 if is_active else 0)
-            self.node_info.labels(
-                name=node.name,
-                mac=node.mac,
-                type=node_type,
-                model=model,
-                ip=node.ip or "",
-                parent_name=parent
-            ).set(1)
+                self.node_up.labels(node.name, node.mac, node_type).set(1 if is_active else 0)
+                self.node_info.labels(
+                    name=node.name,
+                    mac=node.mac,
+                    type=node_type,
+                    model=model,
+                    ip=node.ip or "",
+                    parent_name=parent
+                ).set(1)
 
         # Update device metrics
         # Build a map from node name to MAC for quick lookup
@@ -453,33 +455,39 @@ class FritzPrometheusExporter:
 
         repeater_nodes = {n.mac: n for n in nodes if n.is_repeater}
         for mac, node in repeater_nodes.items():
-            count = count_devices_direct(mac)
-            self.repeater_connected_devices.labels(node.name, mac).set(count)
+            # Only export metrics for active nodes
+            if node.extra.get('active', True):
+                count = count_devices_direct(mac)
+                self.repeater_connected_devices.labels(node.name, mac).set(count)
 
         # Update per-powerline counts - grouped by MAC
         powerline_nodes = {n.mac: n for n in nodes if n.is_powerline}
         for mac, node in powerline_nodes.items():
-            count = count_devices_direct(mac)
-            self.powerline_connected_devices.labels(node.name, mac).set(count)
+            # Only export metrics for active nodes
+            if node.extra.get('active', True):
+                count = count_devices_direct(mac)
+                self.powerline_connected_devices.labels(node.name, mac).set(count)
 
         # Export node hierarchy (parent-child relationships)
         for node in nodes:
-            if node.parent_node and node.parent_node in node_name_to_mac_map:
-                parent_mac = node_name_to_mac_map[node.parent_node]
-                self.node_parent.labels(
-                    name=node.name,
-                    mac=node.mac,
-                    parent_name=node.parent_node,
-                    parent_mac=parent_mac
-                ).set(1)
-            elif node.is_router:
-                # Root node (fritz.box) has no parent - use empty strings
-                self.node_parent.labels(
-                    name=node.name,
-                    mac=node.mac,
-                    parent_name="",
-                    parent_mac=""
-                ).set(1)
+            # Only export hierarchy for active nodes or router
+            if node.is_router or node.extra.get('active', True):
+                if node.parent_node and node.parent_node in node_name_to_mac_map:
+                    parent_mac = node_name_to_mac_map[node.parent_node]
+                    self.node_parent.labels(
+                        name=node.name,
+                        mac=node.mac,
+                        parent_name=node.parent_node,
+                        parent_mac=parent_mac
+                    ).set(1)
+                elif node.is_router:
+                    # Root node (fritz.box) has no parent - use empty strings
+                    self.node_parent.labels(
+                        name=node.name,
+                        mac=node.mac,
+                        parent_name="",
+                        parent_mac=""
+                    ).set(1)
 
         # Calculate aggregated traffic per node (sum of all connected devices)
         node_traffic = {}  # mac -> {rx: int, tx: int}
@@ -496,28 +504,30 @@ class FritzPrometheusExporter:
 
         # Export node traffic metrics
         for node in nodes:
-            node_type = 'router' if node.is_router else ('repeater' if node.is_repeater else 'powerline')
-            self.node_rx_bytes_total.labels(
-                name=node.name,
-                mac=node.mac,
-                type=node_type
-            ).set(node_traffic[node.mac]['rx'])
-            self.node_tx_bytes_total.labels(
-                name=node.name,
-                mac=node.mac,
-                type=node_type
-            ).set(node_traffic[node.mac]['tx'])
+            # Only export traffic for active nodes or router
+            if node.is_router or node.extra.get('active', True):
+                node_type = 'router' if node.is_router else ('repeater' if node.is_repeater else 'powerline')
+                self.node_rx_bytes_total.labels(
+                    name=node.name,
+                    mac=node.mac,
+                    type=node_type
+                ).set(node_traffic[node.mac]['rx'])
+                self.node_tx_bytes_total.labels(
+                    name=node.name,
+                    mac=node.mac,
+                    type=node_type
+                ).set(node_traffic[node.mac]['tx'])
 
-            # Export link speed metrics (current rates in kbps)
-            link_rx_kbps = node.extra.get('link_rx_kbps', 0) if node.extra else 0
-            link_tx_kbps = node.extra.get('link_tx_kbps', 0) if node.extra else 0
-            self.node_link_rx_kbps.labels(
-                name=node.name,
-                mac=node.mac,
-                type=node_type
-            ).set(link_rx_kbps)
-            self.node_link_tx_kbps.labels(
-                name=node.name,
+                # Export link speed metrics (current rates in kbps)
+                link_rx_kbps = node.extra.get('link_rx_kbps', 0) if node.extra else 0
+                link_tx_kbps = node.extra.get('link_tx_kbps', 0) if node.extra else 0
+                self.node_link_rx_kbps.labels(
+                    name=node.name,
+                    mac=node.mac,
+                    type=node_type
+                ).set(link_rx_kbps)
+                self.node_link_tx_kbps.labels(
+                    name=node.name,
                 mac=node.mac,
                 type=node_type
             ).set(link_tx_kbps)
