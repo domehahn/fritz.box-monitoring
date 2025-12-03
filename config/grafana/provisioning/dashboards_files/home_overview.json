@@ -3046,23 +3046,34 @@
     {
       "id": 213,
       "type": "timeseries",
-      "title": "Repeater Traffic - $repeater_name",
+      "title": "$node_name Traffic",
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
         "y": 32
       },
+      "repeat": "node",
+      "repeatDirection": "h",
+      "maxPerRow": 2,
       "targets": [
         {
-          "expr": "fritz_node_link_rx_kbps{mac=\"$repeater\"}",
+          "expr": "fritz_node_link_rx_kbps{mac=\"$node\"}",
           "legendFormat": "RX (Download)",
-          "refId": "A"
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         },
         {
-          "expr": "fritz_node_link_tx_kbps{mac=\"$repeater\"}",
+          "expr": "fritz_node_link_tx_kbps{mac=\"$node\"}",
           "legendFormat": "TX (Upload)",
-          "refId": "B"
+          "refId": "B",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          }
         }
       ],
       "fieldConfig": {
@@ -3076,55 +3087,17 @@
             "lineWidth": 2,
             "fillOpacity": 10,
             "axisPlacement": "auto",
-            "showPoints": "never"
-          }
-        }
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        },
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
-      "id": 214,
-      "type": "timeseries",
-      "title": "Powerline Traffic - $powerline_name",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 32
-      },
-      "targets": [
-        {
-          "expr": "fritz_node_link_rx_kbps{mac=\"$powerline\"}",
-          "legendFormat": "RX (Download)",
-          "refId": "A"
-        },
-        {
-          "expr": "fritz_node_link_tx_kbps{mac=\"$powerline\"}",
-          "legendFormat": "TX (Upload)",
-          "refId": "B"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "Kbits",
-          "color": {
-            "mode": "palette-classic"
+            "showPoints": "never",
+            "spanNulls": false
           },
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "fillOpacity": 10,
-            "axisPlacement": "auto",
-            "showPoints": "never"
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
           }
         }
       },
@@ -3135,7 +3108,8 @@
         },
         "legend": {
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "showLegend": true
         }
       }
     }
@@ -3149,68 +3123,38 @@
   "templating": {
     "list": [
       {
-        "name": "repeater",
+        "name": "node",
         "type": "query",
-        "label": "Repeater",
+        "label": null,
         "datasource": {
           "type": "prometheus",
           "uid": "prometheus"
         },
-        "query": "label_values(fritz_node_up{type=\"repeater\"}, mac)",
+        "query": "label_values(fritz_node_up{type=~\"repeater|powerline\"}, mac)",
         "refresh": 2,
-        "multi": false,
-        "includeAll": false,
+        "multi": true,
+        "includeAll": true,
         "allValue": null,
-        "current": {},
-        "hide": 0
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "hide": 2
       },
       {
-        "name": "repeater_name",
+        "name": "node_name",
         "type": "query",
-        "label": "Repeater Name",
+        "label": null,
         "datasource": {
           "type": "prometheus",
           "uid": "prometheus"
         },
-        "query": "label_values(fritz_node_up{type=\"repeater\", mac=\"$repeater\"}, name)",
+        "query": "label_values(fritz_node_up{mac=\"$node\"}, name)",
         "refresh": 2,
         "multi": false,
         "includeAll": false,
-        "allValue": null,
-        "current": {},
-        "hide": 0
-      },
-      {
-        "name": "powerline",
-        "type": "query",
-        "label": "Powerline",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "query": "label_values(fritz_node_up{type=\"powerline\"}, mac)",
-        "refresh": 2,
-        "multi": false,
-        "includeAll": false,
-        "allValue": null,
-        "current": {},
-        "hide": 0
-      },
-      {
-        "name": "powerline_name",
-        "type": "query",
-        "label": "Powerline Name",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "prometheus"
-        },
-        "query": "label_values(fritz_node_up{type=\"powerline\", mac=\"$powerline\"}, name)",
-        "refresh": 2,
-        "multi": false,
-        "includeAll": false,
-        "allValue": null,
-        "current": {},
-        "hide": 0
+        "hide": 2
       }
     ]
   },
