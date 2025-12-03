@@ -69,6 +69,3 @@ fritzbox_credentials.txt
 passwords.txt
 secrets/
 
-# Network topology (contains private IPs and MACs)
-config/network_topology.json
-config/network_topology.json.backup
