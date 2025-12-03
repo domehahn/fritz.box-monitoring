@@ -292,16 +292,11 @@ class MeshDiscovery:
 
             # Now map UID -> unique_name for ALL infrastructure nodes!
             # Use mesh_mac (from topology) to create consistent unique names
-            infra_processed = 0
             if mesh_topology:
                 for node_info in mesh_topology.get('nodes', []):
                     node_uid = node_info.get('uid', '')
                     mesh_mac = node_info.get('device_mac_address', '').upper()
                     device_name = node_info.get('device_name', '')
-                    
-                    # Debug: track first few iterations
-                    if infra_processed < 3 or node_uid == 'n-1':
-                        print(f"[Loop iter] UID={node_uid}, name={device_name}")
 
                     if not node_uid:
                         continue
@@ -315,15 +310,9 @@ class MeshDiscovery:
                     is_powerline = 'POWERLINE' in vendor_id
                     # Don't classify router or powerline as repeater, even if they have WLAN_ACCESS_POINT
                     is_repeater = ('REPEATER' in vendor_id or 'WLAN_ACCESS_POINT' in caps) and not is_powerline and not is_router
-                    
-                    # Debug: Check why n-1 is not mapped
-                    if node_uid == 'n-1':
-                        print(f"DEBUG n-1: device_name='{device_name}', is_router={is_router}, is_repeater={is_repeater}, is_powerline={is_powerline}")
-
 
                     # Only map infrastructure nodes - clients will be handled via device_ip_to_node_uid
                     if is_router or is_repeater or is_powerline:
-                        infra_processed += 1
                         # Create unique name using MESH MAC (consistent across all interfaces)
                         # Check in priority order: router > powerline > repeater
                         if is_router:
@@ -339,16 +328,8 @@ class MeshDiscovery:
                             mac_suffix = mesh_mac.replace(':', '')[-4:]
                             unique_name = f"Node-{mac_suffix}"
                         
-                        if node_uid == 'n-1':
-                            print(f"  STORING n-1: uid_to_unique_name['{node_uid}'] = '{unique_name}'")
-                            print(f"  Before: len(uid_to_unique_name) = {len(uid_to_unique_name)}")
-                        
                         # Store UID mapping
                         uid_to_unique_name[node_uid] = unique_name
-                        
-                        if node_uid == 'n-1':
-                            print(f"  After: len(uid_to_unique_name) = {len(uid_to_unique_name)}")
-                            print(f"  Verify: uid_to_unique_name.get('n-1') = '{uid_to_unique_name.get('n-1')}'")
                         
                         # Also map mesh_mac and device_name for cross-referencing
                         mac_to_unique_name[mesh_mac] = unique_name
@@ -356,10 +337,6 @@ class MeshDiscovery:
                             mesh_name_to_unique_name[device_name] = unique_name
 
             print(f"UID to unique_name mappings: {len(uid_to_unique_name)}")
-            
-            # Debug: Show ALL UID mappings
-            for uid, name in sorted(uid_to_unique_name.items()):
-                print(f"  {uid:10} → {name}")
 
             # Debug: show sample IP mappings
             sample_ips = list(device_ip_to_node_uid.items())[:10]
