@@ -3051,7 +3051,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 50
+        "y": 32
       },
       "targets": [
         {
@@ -3099,7 +3099,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 50
+        "y": 32
       },
       "targets": [
         {
@@ -3149,73 +3149,68 @@
   "templating": {
     "list": [
       {
-        "allValue": ".*",
-        "current": {
-          "text": "All",
-          "value": "$__all"
-        },
-        "datasource": {
-          "type": "prometheus",
-          "uid": "PBFA97CFB590B2093"
-        },
-        "definition": "label_values(fritz_node_up{type=\"repeater\"} == 1, mac)",
-        "hide": 2,
-        "includeAll": true,
-        "multi": true,
         "name": "repeater",
-        "options": [],
-        "query": {
-          "query": "label_values(fritz_node_up{type=\"repeater\"} == 1, mac)",
-          "refId": "StandardVariableQuery"
-        },
-        "refresh": 1,
-        "regex": "",
-        "sort": 1,
-        "type": "query"
-      },
-      {
-        "current": {
-          "text": "",
-          "value": ""
-        },
+        "type": "query",
+        "label": "Repeater",
         "datasource": {
           "type": "prometheus",
-          "uid": "PBFA97CFB590B2093"
+          "uid": "prometheus"
         },
-        "definition": "label_values(fritz_node_up{type=\"repeater\", mac=\"$repeater\"} == 1, name)",
-        "hide": 2,
+        "query": "label_values(fritz_node_up{type=\"repeater\"}, mac)",
+        "refresh": 2,
+        "multi": false,
         "includeAll": false,
+        "allValue": null,
+        "current": {},
+        "hide": 0
+      },
+      {
         "name": "repeater_name",
-        "options": [],
-        "query": {
-          "query": "label_values(fritz_node_up{type=\"repeater\", mac=\"$repeater\"} == 1, name)",
-          "refId": "StandardVariableQuery"
-        },
-        "refresh": 1,
-        "regex": "",
-        "type": "query"
-      },
-      {
-        "current": {
-          "text": "02:6C:0D:E4:E8:F5",
-          "value": "02:6C:0D:E4:E8:F5"
-        },
+        "type": "query",
+        "label": "Repeater Name",
         "datasource": {
           "type": "prometheus",
-          "uid": "PBFA97CFB590B2093"
+          "uid": "prometheus"
         },
-        "definition": "label_values(fritz_node_up{type=\"powerline\"}, mac)",
+        "query": "label_values(fritz_node_up{type=\"repeater\", mac=\"$repeater\"}, name)",
+        "refresh": 2,
+        "multi": false,
         "includeAll": false,
+        "allValue": null,
+        "current": {},
+        "hide": 0
+      },
+      {
         "name": "powerline",
-        "options": [],
-        "query": {
-          "query": "label_values(fritz_node_up{type=\"powerline\"}, mac)",
-          "refId": "StandardVariableQuery"
+        "type": "query",
+        "label": "Powerline",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
         },
-        "refresh": 1,
-        "regex": "",
-        "sort": 1,
-        "type": "query"
+        "query": "label_values(fritz_node_up{type=\"powerline\"}, mac)",
+        "refresh": 2,
+        "multi": false,
+        "includeAll": false,
+        "allValue": null,
+        "current": {},
+        "hide": 0
+      },
+      {
+        "name": "powerline_name",
+        "type": "query",
+        "label": "Powerline Name",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": "label_values(fritz_node_up{type=\"powerline\", mac=\"$powerline\"}, name)",
+        "refresh": 2,
+        "multi": false,
+        "includeAll": false,
+        "allValue": null,
+        "current": {},
+        "hide": 0
       }
     ]
   },
