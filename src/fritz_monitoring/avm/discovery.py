@@ -290,101 +290,76 @@ class MeshDiscovery:
                 if mac and unique_name and mac not in mac_to_unique_name:
                     mac_to_unique_name[mac] = unique_name
 
-            # Now map UID -> unique_name via IP address (most reliable method!)
+            # Now map UID -> unique_name for ALL infrastructure nodes!
+            # Use mesh_mac (from topology) to create consistent unique names
+            infra_processed = 0
             if mesh_topology:
                 for node_info in mesh_topology.get('nodes', []):
                     node_uid = node_info.get('uid', '')
                     mesh_mac = node_info.get('device_mac_address', '').upper()
                     device_name = node_info.get('device_name', '')
+                    
+                    # Debug: track first few iterations
+                    if infra_processed < 3 or node_uid == 'n-1':
+                        print(f"[Loop iter] UID={node_uid}, name={device_name}")
 
-                    if node_uid:
-                        # Get IP address from mesh topology
-                        node_ip = ''
-                        for ip_info in node_info.get('ip_addresses', []):
-                            if ip_info.get('version') == 'V4':
-                                node_ip = ip_info.get('value', '').split('/')[0]
-                                if node_ip and not node_ip.startswith('169.'):  # Skip link-local
-                                    break
+                    if not node_uid:
+                        continue
 
-                        # Try to find host via IP address (most reliable!)
-                        if node_ip and node_ip in ip_to_host_info:
-                            host_info = ip_to_host_info[node_ip]
-                            host_name = host_info['name']
-                            host_mac = host_info['mac']
-                            
-                            # Get unique name from mesh_name_to_unique_name mapping
-                            unique_name = mesh_name_to_unique_name.get(host_name)
-                            if unique_name:
-                                uid_to_unique_name[node_uid] = unique_name
-                            else:
-                                # Host found but not in mesh_name_to_unique_name
-                                # This can happen if the host name doesn't match mesh topology name
-                                # Check if this is infrastructure by looking at device capabilities
-                                vendor_id = (node_info.get('device_vendor_class_id') or '').upper()
-                                caps = node_info.get('device_capabilities') or []
-                                is_repeater = 'REPEATER' in vendor_id or 'WLAN_ACCESS_POINT' in caps
-                                is_powerline = 'POWERLINE' in vendor_id
-                                is_router = device_name and device_name.lower() in ('fritz.box',)
-                                
-                                if is_router or is_repeater or is_powerline:
-                                    # This is infrastructure - create a unique name
-                                    if is_router:
-                                        unique_name = 'fritz.box'
-                                    elif is_repeater:
-                                        mac_suffix = host_mac.replace(':', '')[-4:]
-                                        unique_name = f"Repeater-{mac_suffix}"
-                                    elif is_powerline:
-                                        mac_suffix = host_mac.replace(':', '')[-4:]
-                                        unique_name = f"Powerline-{mac_suffix}"
-                                    
-                                    # Store for future use
-                                    mesh_name_to_unique_name[host_name] = unique_name
-                                    mac_to_unique_name[host_mac] = unique_name
-                                    uid_to_unique_name[node_uid] = unique_name
-                            continue
+                    # Check if this is infrastructure
+                    vendor_id = (node_info.get('device_vendor_class_id') or '').upper()
+                    caps = node_info.get('device_capabilities') or []
+                    
+                    # Check in priority order: router > powerline > repeater
+                    is_router = device_name and device_name.lower() in ('fritz.box',)
+                    is_powerline = 'POWERLINE' in vendor_id
+                    # Don't classify router or powerline as repeater, even if they have WLAN_ACCESS_POINT
+                    is_repeater = ('REPEATER' in vendor_id or 'WLAN_ACCESS_POINT' in caps) and not is_powerline and not is_router
+                    
+                    # Debug: Check why n-1 is not mapped
+                    if node_uid == 'n-1':
+                        print(f"DEBUG n-1: device_name='{device_name}', is_router={is_router}, is_repeater={is_repeater}, is_powerline={is_powerline}")
 
-                        # Fallback: Try MAC first
-                        if mesh_mac and mesh_mac in mac_to_unique_name:
-                            uid_to_unique_name[node_uid] = mac_to_unique_name[mesh_mac]
-                        # Fall back to device_name mapping
-                        elif device_name and device_name in mesh_name_to_unique_name:
-                            uid_to_unique_name[node_uid] = mesh_name_to_unique_name[device_name]
-                        # Last resort: If it's infrastructure, create unique name from capabilities
+
+                    # Only map infrastructure nodes - clients will be handled via device_ip_to_node_uid
+                    if is_router or is_repeater or is_powerline:
+                        infra_processed += 1
+                        # Create unique name using MESH MAC (consistent across all interfaces)
+                        # Check in priority order: router > powerline > repeater
+                        if is_router:
+                            unique_name = 'fritz.box'
+                        elif is_powerline:
+                            mac_suffix = mesh_mac.replace(':', '')[-4:]
+                            unique_name = f"Powerline-{mac_suffix}"
+                        elif is_repeater:
+                            mac_suffix = mesh_mac.replace(':', '')[-4:]
+                            unique_name = f"Repeater-{mac_suffix}"
                         else:
-                            vendor_id = (node_info.get('device_vendor_class_id') or '').upper()
-                            caps = node_info.get('device_capabilities') or []
-                            is_repeater = 'REPEATER' in vendor_id or 'WLAN_ACCESS_POINT' in caps
-                            is_powerline = 'POWERLINE' in vendor_id
-                            is_router = device_name and device_name.lower() in ('fritz.box',)
-
-                            # Only create UID mapping for infrastructure nodes
-                            # Regular client devices will be handled via device_ip_to_node_uid
-                            if is_router or is_repeater or is_powerline:
-                                if is_router:
-                                    uid_to_unique_name[node_uid] = 'fritz.box'
-                                elif is_repeater:
-                                    mac_suffix = mesh_mac.replace(':', '')[-4:]
-                                    unique_name = f"Repeater-{mac_suffix}"
-                                    uid_to_unique_name[node_uid] = unique_name
-                                    # Try to find matching host by name similarity
-                                    for host in hosts_info:
-                                        host_name = host.get('name', '').lower()
-                                        if host_name in (device_name.lower(), 'fritz.repeater', 'garage', 'og', 'eg'):
-                                            host_mac = host.get('mac', '').upper()
-                                            mesh_name_to_unique_name[host.get('name', '')] = unique_name
-                                            mac_to_unique_name[host_mac] = unique_name
-                                            break
-                                elif is_powerline:
-                                    mac_suffix = mesh_mac.replace(':', '')[-4:]
-                                    unique_name = f"Powerline-{mac_suffix}"
-                                    uid_to_unique_name[node_uid] = unique_name
+                            # Fallback (should not happen)
+                            mac_suffix = mesh_mac.replace(':', '')[-4:]
+                            unique_name = f"Node-{mac_suffix}"
+                        
+                        if node_uid == 'n-1':
+                            print(f"  STORING n-1: uid_to_unique_name['{node_uid}'] = '{unique_name}'")
+                            print(f"  Before: len(uid_to_unique_name) = {len(uid_to_unique_name)}")
+                        
+                        # Store UID mapping
+                        uid_to_unique_name[node_uid] = unique_name
+                        
+                        if node_uid == 'n-1':
+                            print(f"  After: len(uid_to_unique_name) = {len(uid_to_unique_name)}")
+                            print(f"  Verify: uid_to_unique_name.get('n-1') = '{uid_to_unique_name.get('n-1')}'")
+                        
+                        # Also map mesh_mac and device_name for cross-referencing
+                        mac_to_unique_name[mesh_mac] = unique_name
+                        if device_name:
+                            mesh_name_to_unique_name[device_name] = unique_name
 
             print(f"UID to unique_name mappings: {len(uid_to_unique_name)}")
             
-            # Debug: Show which repeaters were mapped
-            for uid, name in uid_to_unique_name.items():
-                if 'Repeater' in name or 'Powerline' in name:
-                    print(f"  {uid:10} → {name}")
+            # Debug: Show ALL UID mappings
+            for uid, name in sorted(uid_to_unique_name.items()):
+                print(f"  {uid:10} → {name}")
 
             # Debug: show sample IP mappings
             sample_ips = list(device_ip_to_node_uid.items())[:10]
@@ -455,7 +430,35 @@ class MeshDiscovery:
                         },
                         parent_node=None  # Will be resolved later
                     )
-                    nodes_by_mac[mac_addr.upper()] = node            # Second pass: create nodes and devices with correct mappings
+                    nodes_by_mac[mac_addr.upper()] = node            # Build reverse mapping: host_mac -> mesh_mac (for infrastructure)
+            # This is needed because hosts and mesh topology use different MACs for same device
+            host_mac_to_mesh_mac = {}
+            if mesh_topology:
+                for node_info in mesh_topology.get('nodes', []):
+                    mesh_mac = node_info.get('device_mac_address', '').upper()
+                    vendor_id = (node_info.get('device_vendor_class_id') or '').upper()
+                    caps = node_info.get('device_capabilities') or []
+                    is_infra = 'REPEATER' in vendor_id or 'POWERLINE' in vendor_id or 'WLAN_ACCESS_POINT' in caps
+                    
+                    if is_infra:
+                        # Get IP from mesh topology
+                        node_ip = ''
+                        for ip_info in node_info.get('ip_addresses', []):
+                            if ip_info.get('version') == 'V4':
+                                node_ip = ip_info.get('value', '').split('/')[0]
+                                if node_ip and not node_ip.startswith('169.'):
+                                    break
+                        
+                        # Find matching host by IP
+                        if node_ip:
+                            for host in hosts_info:
+                                if host.get('ip', '') == node_ip:
+                                    host_mac = host.get('mac', '').upper()
+                                    if host_mac and mesh_mac:
+                                        host_mac_to_mesh_mac[host_mac] = mesh_mac
+                                    break
+
+            # Second pass: create nodes and devices with correct mappings
             for host in hosts_info:
                 name = host.get('name', 'Unknown')
                 mac = host.get('mac', '')
@@ -466,46 +469,44 @@ class MeshDiscovery:
                 # Only treat mesh infrastructure as nodes (router, repeater, powerline)
                 upper_name = name.upper()
                 # Prefer mesh-derived type by MAC if available
-                mac_key = (mac or '').upper()
-                mesh_type = type_by_mac.get(mac_key, {})
+                host_mac_upper = (mac or '').upper()
+                
+                # Get mesh_mac for this host (if infrastructure)
+                mesh_mac_for_host = host_mac_to_mesh_mac.get(host_mac_upper, host_mac_upper)
+                
+                mesh_type = type_by_mac.get(mesh_mac_for_host, {})
                 is_repeater = bool(mesh_type.get('is_repeater')) or ('REPEATER' in upper_name)
                 is_powerline = bool(mesh_type.get('is_powerline')) or ('POWERLINE' in upper_name) or ('AVM1220' in upper_name) or ('AVM1260' in upper_name)
                 is_router = bool(mesh_type.get('is_router')) or (upper_name.startswith('FRITZ.BOX') or upper_name == 'FRITZ.BOX')
 
                 if is_router or is_repeater or is_powerline:
-                    # Infrastructure node - create unique standardized name
-                    mac_upper = (mac or '').upper()
-                    mesh_name = mac_to_mesh_name.get(mac_upper)
-
-                    # Always create standardized unique names for infrastructure
-                    if is_router:
-                        unique_name = "fritz.box"
-                    elif is_repeater:
-                        mac_suffix = mac.replace(':', '')[-4:] if mac else 'Unknown'
-                        unique_name = f"Repeater-{mac_suffix}"
-                    elif is_powerline:
-                        mac_suffix = mac.replace(':', '')[-4:] if mac else 'Unknown'
-                        unique_name = f"Powerline-{mac_suffix}"
-                    else:
-                        unique_name = name
-
-                    # Store mappings so mesh_name and host_name both resolve to unique_name
-                    if mesh_name:
-                        mesh_name_to_unique_name[mesh_name] = unique_name
-                    mesh_name_to_unique_name[name] = unique_name
+                    # Get unique name from mac_to_unique_name (uses mesh_mac!)
+                    unique_name = mac_to_unique_name.get(mesh_mac_for_host)
+                    
+                    if not unique_name:
+                        # Fallback: create unique name (shouldn't happen with new mapping logic)
+                        if is_router:
+                            unique_name = "fritz.box"
+                        elif is_repeater:
+                            mac_suffix = mesh_mac_for_host.replace(':', '')[-4:]
+                            unique_name = f"Repeater-{mac_suffix}"
+                        elif is_powerline:
+                            mac_suffix = mesh_mac_for_host.replace(':', '')[-4:]
+                            unique_name = f"Powerline-{mac_suffix}"
 
                     # Get model name from mapping or use original name as fallback
+                    mesh_name = mac_to_mesh_name.get(mesh_mac_for_host)
                     model_display_name = model_name_mapping.get(mesh_name or name, name)
 
-                    # Update existing node or create new one
-                    parent_uid = node_mac_to_parent_name.get(mac_upper)
+                    # Update existing node or create new one (use mesh_mac as key!)
+                    parent_uid = node_mac_to_parent_name.get(mesh_mac_for_host)
 
-                    # Get link speeds for this node
-                    link_speeds = node_mac_to_link_speeds.get(mac_upper, {'rx_kbps': 0, 'tx_kbps': 0})
+                    # Get link speeds for this node (use mesh_mac!)
+                    link_speeds = node_mac_to_link_speeds.get(mesh_mac_for_host, {'rx_kbps': 0, 'tx_kbps': 0})
 
-                    if mac_upper in nodes_by_mac:
+                    if mesh_mac_for_host in nodes_by_mac:
                         # Update existing mesh-only node with host data
-                        node = nodes_by_mac[mac_upper]
+                        node = nodes_by_mac[mesh_mac_for_host]
                         node.ip = ip
                         node.extra['active'] = active
                         node.extra['model'] = model_display_name
@@ -513,10 +514,10 @@ class MeshDiscovery:
                         node.extra['link_rx_kbps'] = link_speeds['rx_kbps']
                         node.extra['link_tx_kbps'] = link_speeds['tx_kbps']
                     else:
-                        # Create new node from host
+                        # Create new node from host (use host_mac for the node, but store mesh_mac in nodes_by_mac)
                         node = Node(
                             name=unique_name,
-                            mac=mac,
+                            mac=mac,  # Use host MAC for the node object
                             ip=ip,
                             is_router=is_router,
                             is_repeater=is_repeater,
@@ -526,11 +527,12 @@ class MeshDiscovery:
                                 'model': model_display_name,
                                 'parent_uid': parent_uid,
                                 'link_rx_kbps': link_speeds['rx_kbps'],
-                                'link_tx_kbps': link_speeds['tx_kbps']
+                                'link_tx_kbps': link_speeds['tx_kbps'],
+                                'mesh_mac': mesh_mac_for_host  # Store mesh MAC for reference
                             },
                             parent_node=None  # Will be resolved later
                         )
-                        nodes_by_mac[mac_upper] = node
+                        nodes_by_mac[mesh_mac_for_host] = node
                 else:
                     # All other devices - use WLAN associations, then static IP mapping, then mesh IP mapping, fallback to fritz.box
                     connected_node_mesh_name = None
