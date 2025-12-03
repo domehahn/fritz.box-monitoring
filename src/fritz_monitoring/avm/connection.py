@@ -45,17 +45,17 @@ class FritzClient:
         try:
             # Get current transmission rates (bytes/sec)
             current_rates = self.status.transmission_rate  # Returns (downstream, upstream) in bytes/sec
-            
+
             # Get connection uptime (different from device uptime)
             connection_uptime = getattr(self.status, 'connection_uptime', 0)
-            
+
             # Get external IP
             external_ip = getattr(self.status, 'external_ip', '')
-            
+
             # Get DSL line quality metrics
             attenuation = self.status.attenuation  # Returns (downstream, upstream) in dB
             noise_margin = self.status.noise_margin  # Returns (downstream, upstream) in dB
-            
+
             return {
                 'bytes_sent': self.status.bytes_sent or 0,
                 'bytes_received': self.status.bytes_received or 0,
@@ -92,7 +92,7 @@ class FritzClient:
                 'dsl_upstream_noise_margin': 0,
                 'cpu_temperatures': {},
             }
-    
+
     def _get_cpu_temperatures(self):
         """Get CPU temperature readings (requires authentication)"""
         try:
@@ -108,7 +108,7 @@ class FritzClient:
             # or authentication might be required
             pass
         return {}
-    
+
     def get_wlan_traffic_stats(self):
         """Get WiFi interface traffic statistics (works on repeaters too)"""
         wlan_stats = {}
@@ -117,10 +117,10 @@ class FritzClient:
             for service_id in range(1, 5):
                 try:
                     service_name = f'WLANConfiguration{service_id}'
-                    
+
                     # Get statistics for this WLAN interface
                     result = self.fc.call_action(service_name, 'GetStatistics')
-                    
+
                     # Aggregate all interfaces
                     if service_id == 1:
                         wlan_stats = {
@@ -130,13 +130,13 @@ class FritzClient:
                     else:
                         wlan_stats['total_packets_sent'] += result.get('NewTotalPacketsSent', 0)
                         wlan_stats['total_packets_received'] += result.get('NewTotalPacketsReceived', 0)
-                        
+
                 except Exception:
                     continue
-                    
+
         except Exception as e:
             print(f"Error getting WLAN stats: {e}")
-            
+
         return wlan_stats
 
     def get_wlan_devices(self):
@@ -147,17 +147,17 @@ class FritzClient:
             for service_id in range(1, 5):
                 try:
                     service_name = f'WLANConfiguration{service_id}'
-                    
+
                     # Get number of associated devices
                     result = self.fc.call_action(service_name, 'GetTotalAssociations')
                     total = result.get('NewTotalAssociations', 0)
-                    
+
                     # Get BSSID (MAC address of this access point)
                     bssid_result = self.fc.call_action(service_name, 'GetInfo')
                     ap_mac = bssid_result.get('NewBSSID', '')
-                    
+
                     print(f"{service_name}: {total} devices on AP {ap_mac}")
-                    
+
                     # Get each associated device
                     for i in range(total):
                         try:
@@ -166,7 +166,7 @@ class FritzClient:
                                 'GetGenericAssociatedDeviceInfo',
                                 NewAssociatedDeviceIndex=i
                             )
-                            
+
                             device_mac = device_info.get('NewAssociatedDeviceMACAddress', '')
                             if device_mac:
                                 wlan_devices.append({
@@ -179,15 +179,15 @@ class FritzClient:
                                 })
                         except Exception:
                             continue
-                            
+
                 except Exception:
                     # Service might not exist, continue to next
                     continue
-            
+
             print(f"Total WLAN devices collected: {len(wlan_devices)}")
-                    
+
         except Exception as e:
             print(f"Error getting WLAN devices: {e}")
-            
+
         return wlan_devices
 

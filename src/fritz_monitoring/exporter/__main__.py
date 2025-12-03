@@ -7,7 +7,7 @@ from ..config import Settings
 def main():
     settings = Settings()
     server = MetricsServer(settings)
-    
+
     try:
         asyncio.run(server.run())
     except KeyboardInterrupt:

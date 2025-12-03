@@ -1,264 +1,464 @@
 {
-  "annotations": {"list": []},
-  "editable": true,
-  "fiscalYearStartMonth": 0,
-  "graphTooltip": 0,
-  "id": null,
-  "links": [],
-  "panels": [
-    {
-      "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
-      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
-      "id": 10,
-      "options": {
-        "graphMode": "area",
-        "colorMode": "value",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "values": false,
-          "calcs": ["lastNotNull"],
-          "fields": ""
-        },
-        "textMode": "auto"
-      },
-      "pluginVersion": "11.0.0",
-      "targets": [
-        {"expr": "fritz_log_total", "refId": "A"}
-      ],
-      "title": "Total Log Entries",
-      "type": "stat"
+    "annotations": {
+        "list": []
     },
-    {
-      "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
-      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
-      "id": 11,
-      "options": {
-        "graphMode": "area",
-        "colorMode": "value",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "values": false,
-          "calcs": ["lastNotNull"],
-          "fields": ""
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 0,
+    "id": null,
+    "links": [],
+    "panels": [
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+            },
+            "gridPos": {
+                "h": 4,
+                "w": 6,
+                "x": 0,
+                "y": 0
+            },
+            "id": 10,
+            "options": {
+                "graphMode": "area",
+                "colorMode": "value",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "reduceOptions": {
+                    "values": false,
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": ""
+                },
+                "textMode": "auto"
+            },
+            "pluginVersion": "11.0.0",
+            "targets": [
+                {
+                    "expr": "fritz_log_total",
+                    "refId": "A"
+                }
+            ],
+            "title": "Total Log Entries",
+            "type": "stat"
         },
-        "textMode": "auto"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {"color": "green", "value": null},
-              {"color": "orange", "value": 1}
-            ]
-          }
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+            },
+            "gridPos": {
+                "h": 4,
+                "w": 6,
+                "x": 6,
+                "y": 0
+            },
+            "id": 11,
+            "options": {
+                "graphMode": "area",
+                "colorMode": "value",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "reduceOptions": {
+                    "values": false,
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": ""
+                },
+                "textMode": "auto"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": null
+                            },
+                            {
+                                "color": "orange",
+                                "value": 1
+                            }
+                        ]
+                    }
+                }
+            },
+            "pluginVersion": "11.0.0",
+            "targets": [
+                {
+                    "expr": "fritz_log_by_severity{severity=\"error\"}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Errors",
+            "type": "stat"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+            },
+            "gridPos": {
+                "h": 4,
+                "w": 6,
+                "x": 12,
+                "y": 0
+            },
+            "id": 12,
+            "options": {
+                "graphMode": "area",
+                "colorMode": "value",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "reduceOptions": {
+                    "values": false,
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": ""
+                },
+                "textMode": "auto"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": null
+                            },
+                            {
+                                "color": "yellow",
+                                "value": 1
+                            }
+                        ]
+                    }
+                }
+            },
+            "pluginVersion": "11.0.0",
+            "targets": [
+                {
+                    "expr": "fritz_log_by_severity{severity=\"warning\"}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Warnings",
+            "type": "stat"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+            },
+            "gridPos": {
+                "h": 4,
+                "w": 6,
+                "x": 18,
+                "y": 0
+            },
+            "id": 13,
+            "options": {
+                "graphMode": "area",
+                "colorMode": "value",
+                "justifyMode": "auto",
+                "orientation": "auto",
+                "reduceOptions": {
+                    "values": false,
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": ""
+                },
+                "textMode": "auto"
+            },
+            "pluginVersion": "11.0.0",
+            "targets": [
+                {
+                    "expr": "fritz_log_by_severity{severity=\"info\"}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Info",
+            "type": "stat"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 0,
+                "y": 4
+            },
+            "id": 14,
+            "options": {
+                "legend": {
+                    "showLegend": true,
+                    "displayMode": "table",
+                    "placement": "right",
+                    "calcs": [
+                        "last"
+                    ]
+                },
+                "pieType": "donut",
+                "displayLabels": [
+                    "percent"
+                ],
+                "reduceOptions": {
+                    "values": false,
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": ""
+                }
+            },
+            "pluginVersion": "11.0.0",
+            "targets": [
+                {
+                    "expr": "fritz_log_by_category",
+                    "refId": "A",
+                    "legendFormat": "{{category}}"
+                }
+            ],
+            "title": "Logs by Category",
+            "type": "piechart"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 12,
+                "y": 4
+            },
+            "id": 15,
+            "options": {
+                "legend": {
+                    "showLegend": true,
+                    "displayMode": "table",
+                    "placement": "right",
+                    "calcs": [
+                        "last"
+                    ]
+                },
+                "pieType": "donut",
+                "displayLabels": [
+                    "percent"
+                ],
+                "reduceOptions": {
+                    "values": false,
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": ""
+                }
+            },
+            "pluginVersion": "11.0.0",
+            "targets": [
+                {
+                    "expr": "fritz_log_by_source",
+                    "refId": "A",
+                    "legendFormat": "{{source}}"
+                }
+            ],
+            "title": "Logs by Source Device",
+            "type": "piechart"
+        },
+        {
+            "datasource": {
+                "type": "loki",
+                "uid": "P8E80F9AEF21F6940"
+            },
+            "gridPos": {
+                "h": 10,
+                "w": 24,
+                "x": 0,
+                "y": 12
+            },
+            "id": 2,
+            "options": {
+                "tooltip": {
+                    "mode": "multi",
+                    "sort": "desc"
+                },
+                "legend": {
+                    "showLegend": true,
+                    "displayMode": "list",
+                    "placement": "bottom",
+                    "calcs": []
+                }
+            },
+            "pluginVersion": "11.0.0",
+            "targets": [
+                {
+                    "expr": "sum(count_over_time({job=\"fritzbox-logs\"}[1m]))",
+                    "refId": "A",
+                    "legendFormat": "Total"
+                },
+                {
+                    "expr": "sum(count_over_time({job=\"fritzbox-logs\",severity=\"error\"}[1m]))",
+                    "refId": "B",
+                    "legendFormat": "Errors"
+                },
+                {
+                    "expr": "sum(count_over_time({job=\"fritzbox-logs\",severity=\"warning\"}[1m]))",
+                    "refId": "C",
+                    "legendFormat": "Warnings"
+                }
+            ],
+            "title": "Log Rate (per minute)",
+            "type": "timeseries",
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "drawStyle": "line",
+                        "lineInterpolation": "smooth",
+                        "barAlignment": 0,
+                        "lineWidth": 2,
+                        "fillOpacity": 20,
+                        "gradientMode": "opacity",
+                        "spanNulls": false,
+                        "showPoints": "never",
+                        "pointSize": 5,
+                        "stacking": {
+                            "mode": "none",
+                            "group": "A"
+                        },
+                        "axisPlacement": "auto",
+                        "axisLabel": "Logs/min",
+                        "scaleDistribution": {
+                            "type": "linear"
+                        },
+                        "hideFrom": {
+                            "tooltip": false,
+                            "viz": false,
+                            "legend": false
+                        },
+                        "thresholdsStyle": {
+                            "mode": "off"
+                        }
+                    },
+                    "mappings": [],
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": null
+                            }
+                        ]
+                    },
+                    "unit": "short",
+                    "color": {
+                        "mode": "palette-classic"
+                    }
+                },
+                "overrides": [
+                    {
+                        "matcher": {
+                            "id": "byName",
+                            "options": "Errors"
+                        },
+                        "properties": [
+                            {
+                                "id": "color",
+                                "value": {
+                                    "mode": "fixed",
+                                    "fixedColor": "red"
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "matcher": {
+                            "id": "byName",
+                            "options": "Warnings"
+                        },
+                        "properties": [
+                            {
+                                "id": "color",
+                                "value": {
+                                    "mode": "fixed",
+                                    "fixedColor": "orange"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "datasource": {
+                "type": "loki",
+                "uid": "P8E80F9AEF21F6940"
+            },
+            "gridPos": {
+                "h": 15,
+                "w": 24,
+                "x": 0,
+                "y": 22
+            },
+            "id": 1,
+            "options": {
+                "showTime": true,
+                "showLabels": true,
+                "showCommonLabels": false,
+                "wrapLogMessage": true,
+                "prettifyLogMessage": false,
+                "enableLogDetails": true,
+                "dedupStrategy": "none",
+                "sortOrder": "Descending"
+            },
+            "pluginVersion": "11.0.0",
+            "targets": [
+                {
+                    "expr": "{job=\"fritzbox-logs\"} |~ \"(?i)$search_term\"",
+                    "refId": "A"
+                }
+            ],
+            "title": "Fritz!Box System Logs",
+            "type": "logs"
         }
-      },
-      "pluginVersion": "11.0.0",
-      "targets": [
-        {"expr": "fritz_log_by_severity{severity=\"error\"}", "refId": "A"}
-      ],
-      "title": "Errors",
-      "type": "stat"
-    },
-    {
-      "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
-      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
-      "id": 12,
-      "options": {
-        "graphMode": "area",
-        "colorMode": "value",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "values": false,
-          "calcs": ["lastNotNull"],
-          "fields": ""
-        },
-        "textMode": "auto"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {"color": "green", "value": null},
-              {"color": "yellow", "value": 1}
-            ]
-          }
-        }
-      },
-      "pluginVersion": "11.0.0",
-      "targets": [
-        {"expr": "fritz_log_by_severity{severity=\"warning\"}", "refId": "A"}
-      ],
-      "title": "Warnings",
-      "type": "stat"
-    },
-    {
-      "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
-      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
-      "id": 13,
-      "options": {
-        "graphMode": "area",
-        "colorMode": "value",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "values": false,
-          "calcs": ["lastNotNull"],
-          "fields": ""
-        },
-        "textMode": "auto"
-      },
-      "pluginVersion": "11.0.0",
-      "targets": [
-        {"expr": "fritz_log_by_severity{severity=\"info\"}", "refId": "A"}
-      ],
-      "title": "Info",
-      "type": "stat"
-    },
-    {
-      "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
-      "id": 14,
-      "options": {
-        "legend": {"showLegend": true, "displayMode": "table", "placement": "right", "calcs": ["last"]},
-        "pieType": "donut",
-        "displayLabels": ["percent"],
-        "reduceOptions": {
-          "values": false,
-          "calcs": ["lastNotNull"],
-          "fields": ""
-        }
-      },
-      "pluginVersion": "11.0.0",
-      "targets": [
-        {"expr": "fritz_log_by_category", "refId": "A", "legendFormat": "{{category}}"}
-      ],
-      "title": "Logs by Category",
-      "type": "piechart"
-    },
-    {
-      "datasource": {"type": "prometheus", "uid": "PBFA97CFB590B2093"},
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
-      "id": 15,
-      "options": {
-        "legend": {"showLegend": true, "displayMode": "table", "placement": "right", "calcs": ["last"]},
-        "pieType": "donut",
-        "displayLabels": ["percent"],
-        "reduceOptions": {
-          "values": false,
-          "calcs": ["lastNotNull"],
-          "fields": ""
-        }
-      },
-      "pluginVersion": "11.0.0",
-      "targets": [
-        {"expr": "fritz_log_by_source", "refId": "A", "legendFormat": "{{source}}"}
-      ],
-      "title": "Logs by Source Device",
-      "type": "piechart"
-    },
-    {
-      "datasource": {"type": "loki", "uid": "P8E80F9AEF21F6940"},
-      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 12},
-      "id": 2,
-      "options": {
-        "tooltip": {"mode": "multi", "sort": "desc"},
-        "legend": {"showLegend": true, "displayMode": "list", "placement": "bottom", "calcs": []}
-      },
-      "pluginVersion": "11.0.0",
-      "targets": [
-        {"expr": "sum(count_over_time({job=\"fritzbox-logs\"}[1m]))", "refId": "A", "legendFormat": "Total"},
-        {"expr": "sum(count_over_time({job=\"fritzbox-logs\",severity=\"error\"}[1m]))", "refId": "B", "legendFormat": "Errors"},
-        {"expr": "sum(count_over_time({job=\"fritzbox-logs\",severity=\"warning\"}[1m]))", "refId": "C", "legendFormat": "Warnings"}
-      ],
-      "title": "Log Rate (per minute)",
-      "type": "timeseries",
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "smooth",
-            "barAlignment": 0,
-            "lineWidth": 2,
-            "fillOpacity": 20,
-            "gradientMode": "opacity",
-            "spanNulls": false,
-            "showPoints": "never",
-            "pointSize": 5,
-            "stacking": {"mode": "none", "group": "A"},
-            "axisPlacement": "auto",
-            "axisLabel": "Logs/min",
-            "scaleDistribution": {"type": "linear"},
-            "hideFrom": {"tooltip": false, "viz": false, "legend": false},
-            "thresholdsStyle": {"mode": "off"}
-          },
-          "mappings": [],
-          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
-          "unit": "short",
-          "color": {"mode": "palette-classic"}
-        },
-        "overrides": [
-          {
-            "matcher": {"id": "byName", "options": "Errors"},
-            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]
-          },
-          {
-            "matcher": {"id": "byName", "options": "Warnings"},
-            "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}}]
-          }
+    ],
+    "refresh": "30s",
+    "schemaVersion": 39,
+    "tags": [
+        "fritzbox",
+        "logs"
+    ],
+    "templating": {
+        "list": [
+            {
+                "name": "search_term",
+                "label": "Search",
+                "type": "textbox",
+                "current": {
+                    "value": ".*",
+                    "text": ".*"
+                },
+                "options": [],
+                "query": ".*",
+                "hide": 0
+            }
         ]
-      }
     },
-    {
-      "datasource": {"type": "loki", "uid": "P8E80F9AEF21F6940"},
-      "gridPos": {"h": 15, "w": 24, "x": 0, "y": 22},
-      "id": 1,
-      "options": {
-        "showTime": true,
-        "showLabels": true,
-        "showCommonLabels": false,
-        "wrapLogMessage": true,
-        "prettifyLogMessage": false,
-        "enableLogDetails": true,
-        "dedupStrategy": "none",
-        "sortOrder": "Descending"
-      },
-      "pluginVersion": "11.0.0",
-      "targets": [
-        {"expr": "{job=\"fritzbox-logs\"} |~ \"(?i)$search_term\"", "refId": "A"}
-      ],
-      "title": "Fritz!Box System Logs",
-      "type": "logs"
-    }
-  ],
-  "refresh": "30s",
-  "schemaVersion": 39,
-  "tags": ["fritzbox", "logs"],
-  "templating": {
-    "list": [
-      {
-        "name": "search_term",
-        "label": "Search",
-        "type": "textbox",
-        "current": {
-          "value": ".*",
-          "text": ".*"
-        },
-        "options": [],
-        "query": ".*",
-        "hide": 0
-      }
-    ]
-  },
-  "time": {"from": "now-6h", "to": "now"},
-  "timepicker": {},
-  "timezone": "browser",
-  "title": "Fritz!Box System Logs",
-  "uid": "fritz_logs",
-  "version": 2
+    "time": {
+        "from": "now-6h",
+        "to": "now"
+    },
+    "timepicker": {},
+    "timezone": "browser",
+    "title": "Fritz!Box System Logs",
+    "uid": "fritz_logs",
+    "version": 2
 }

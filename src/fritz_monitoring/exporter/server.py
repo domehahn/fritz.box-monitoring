@@ -28,7 +28,7 @@ class MetricsServer:
             wlan_stats = self.fritz_client.get_wlan_traffic_stats()
             nodes, devices = self.discovery.discover()
             log_stats = self.log_collector.get_log_stats()
-            
+
             self.exporter.update_from_snapshot(router_data, wlan_stats, nodes, devices)
             self.exporter.update_log_metrics(log_stats)
         except Exception as e:
@@ -40,7 +40,7 @@ class MetricsServer:
             log_stats = {'total': 0}
             self.exporter.update_from_snapshot(router_data, wlan_stats, nodes, devices)
             self.exporter.update_log_metrics(log_stats)
-        
+
         return web.Response(
             body=self.exporter.render(),
             content_type="text/plain",
@@ -51,7 +51,7 @@ class MetricsServer:
         try:
             import json
             logs = self.log_collector.get_logs()
-            
+
             # Convert to JSON Lines format for easy consumption
             log_lines = []
             for log in logs:
@@ -62,7 +62,7 @@ class MetricsServer:
                     'source': log.source or '',
                     'category': log.category or '',
                 }))
-            
+
             return web.Response(
                 body='\n'.join(log_lines),
                 content_type="application/x-ndjson",
@@ -80,16 +80,16 @@ class MetricsServer:
         try:
             import json
             nodes, devices = self.discovery.discover()
-            
+
             # Build graph structure
             graph_nodes = []
             graph_edges = []
             edge_counter = 0
-            
+
             for node in nodes:
                 # Determine node type
                 node_type = "router" if node.is_router else ("repeater" if node.is_repeater else ("powerline" if node.is_powerline else "unknown"))
-                
+
                 # Add node
                 graph_nodes.append({
                     "id": node.mac,
@@ -97,7 +97,7 @@ class MetricsServer:
                     "subTitle": node_type,
                     "mainStat": node.ip or "",
                 })
-                
+
                 # Add edge if node has a parent
                 if hasattr(node, 'parent_node') and node.parent_node:
                     edge_counter += 1
@@ -106,12 +106,12 @@ class MetricsServer:
                         "source": node.parent_node.mac if hasattr(node.parent_node, 'mac') else node.parent_node,
                         "target": node.mac,
                     })
-            
+
             response_data = {
                 "nodes": graph_nodes,
                 "edges": graph_edges
             }
-            
+
             return web.Response(
                 body=json.dumps(response_data, indent=2),
                 content_type="application/json",
@@ -135,13 +135,13 @@ class MetricsServer:
         """Return network topology in Grafana Arrow format for nodeGraph."""
         try:
             nodes, _ = self.discovery.discover()
-            
+
             # Build combined node-edge table
             rows = []
-            
+
             for node in nodes:
                 node_type = "router" if node.is_router else ("repeater" if node.is_repeater else "powerline")
-                
+
                 # Add row for this node and its edge
                 if hasattr(node, 'parent_node') and node.parent_node:
                     parent_mac = node.parent_node.mac if hasattr(node.parent_node, 'mac') else str(node.parent_node)
@@ -163,7 +163,7 @@ class MetricsServer:
                         "arc__source": "",
                         "arc__target": ""
                     })
-            
+
             return web.Response(
                 body=json.dumps(rows),
                 content_type="application/json",

@@ -21,22 +21,22 @@ async def fetch_and_push_logs():
                 if resp.status != 200:
                     print(f"Error fetching logs: {resp.status}")
                     return
-                
+
                 log_text = await resp.text()
                 if not log_text.strip():
                     print("No logs received")
                     return
-                
+
                 # Parse NDJSON logs
                 logs = []
                 for line in log_text.strip().split('\n'):
                     if line:
                         logs.append(json.loads(line))
-                
+
                 if not logs:
                     print("No log entries found")
                     return
-                
+
                 # Filter logs to only recent ones (last 48 hours to be safe with Loki limits)
                 now = datetime.now(timezone.utc)
                 max_age_hours = 48
@@ -51,16 +51,16 @@ async def fetch_and_push_logs():
                             recent_logs.append(log)
                     except:
                         pass
-                
+
                 if not recent_logs:
                     print(f"No recent logs found (filtered {len(logs)} old entries)")
                     return
-                
+
                 # Sort logs by timestamp (oldest first) so Loki accepts them in order
                 recent_logs.sort(key=lambda x: x['timestamp'])
-                
+
                 print(f"Fetched {len(logs)} log entries, {len(recent_logs)} are recent enough for Loki")
-                
+
                 # Prepare Loki push request
                 streams = {}
                 for log in recent_logs:
@@ -71,13 +71,13 @@ async def fetch_and_push_logs():
                         'source': log.get('source', ''),
                         'category': log.get('category', ''),
                     }
-                    
+
                     # Remove empty labels
                     labels = {k: v for k, v in labels.items() if v}
-                    
+
                     # Convert to Loki label string
                     label_str = '{' + ','.join(f'{k}="{v}"' for k, v in sorted(labels.items())) + '}'
-                    
+
                     # Parse timestamp
                     try:
                         ts = datetime.fromisoformat(log['timestamp'])
@@ -90,21 +90,21 @@ async def fetch_and_push_logs():
                     except:
                         ts_ns = str(int(time.time() * 1_000_000_000))
                         message = log['message']
-                    
+
                     # Group by label set
                     if label_str not in streams:
                         streams[label_str] = {
                             'stream': labels,
                             'values': []
                         }
-                    
+
                     streams[label_str]['values'].append([ts_ns, message])
-                
+
                 # Push to Loki
                 payload = {
                     'streams': list(streams.values())
                 }
-                
+
                 async with session.post(LOKI_URL, json=payload) as resp:
                     if resp.status == 204:
                         print(f"Successfully pushed {len(recent_logs)} logs to Loki")
@@ -112,7 +112,7 @@ async def fetch_and_push_logs():
                         print(f"Error pushing to Loki: {resp.status}")
                         error_text = await resp.text()
                         print(f"Response: {error_text}")
-                
+
         except Exception as e:
             print(f"Error: {e}")
 
@@ -121,7 +121,7 @@ async def main():
     """Main loop."""
     print("Fritz!Box Log Pusher started")
     print(f"Polling {EXPORTER_URL} every {POLL_INTERVAL} seconds")
-    
+
     while True:
         await fetch_and_push_logs()
         await asyncio.sleep(POLL_INTERVAL)

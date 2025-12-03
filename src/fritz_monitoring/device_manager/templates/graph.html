@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="de">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,14 +12,14 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
             background: #0f0f0f;
             color: #e0e0e0;
             overflow: hidden;
         }
-        
+
         header {
             background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
             padding: 20px 30px;
@@ -29,17 +30,17 @@
             z-index: 10;
             position: relative;
         }
-        
+
         h1 {
             color: #fff;
             font-size: 24px;
         }
-        
+
         .nav-links {
             display: flex;
             gap: 15px;
         }
-        
+
         .nav-link {
             padding: 8px 16px;
             background: rgba(255, 255, 255, 0.1);
@@ -49,66 +50,66 @@
             transition: all 0.2s;
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
-        
+
         .nav-link:hover {
             background: rgba(255, 255, 255, 0.2);
         }
-        
+
         .nav-link.active {
             background: #4caf50;
             border-color: #4caf50;
         }
-        
+
         .stats {
             display: flex;
             gap: 15px;
             font-size: 14px;
             margin-top: 10px;
         }
-        
+
         .stat {
             background: rgba(255, 255, 255, 0.05);
             padding: 8px 15px;
             border-radius: 6px;
         }
-        
+
         #topology {
             width: 100%;
             height: calc(100vh - 100px);
             background: #0f0f0f;
         }
-        
+
         .node {
             cursor: pointer;
         }
-        
+
         .node circle {
             stroke: #fff;
             stroke-width: 2.5px;
             transition: all 0.3s;
         }
-        
+
         .node:hover circle {
             stroke-width: 4px;
             filter: brightness(1.3);
         }
-        
+
         .node.router circle {
             fill: #4caf50;
         }
-        
+
         .node.repeater circle {
             fill: #2196f3;
         }
-        
+
         .node.powerline circle {
             fill: #ff9800;
         }
-        
+
         .node.unknown circle {
             fill: #666;
         }
-        
+
         .node text {
             fill: #e0e0e0;
             font-size: 12px;
@@ -116,39 +117,39 @@
             text-anchor: middle;
             pointer-events: none;
         }
-        
+
         .node .icon {
             font-size: 20px;
         }
-        
+
         .link {
             stroke: #444;
             stroke-width: 2px;
             stroke-opacity: 0.6;
         }
-        
+
         .link.WLAN {
             stroke: #2196f3;
             stroke-dasharray: 5, 5;
             animation: dash 20s linear infinite;
         }
-        
+
         .link.LAN {
             stroke: #4caf50;
         }
-        
+
         .link.POWERLINE {
             stroke: #ff9800;
             stroke-dasharray: 3, 6;
             animation: dash 15s linear infinite;
         }
-        
+
         @keyframes dash {
             to {
                 stroke-dashoffset: -100;
             }
         }
-        
+
         .tooltip {
             position: absolute;
             background: rgba(26, 26, 26, 0.98);
@@ -163,11 +164,11 @@
             max-width: 350px;
             z-index: 1000;
         }
-        
+
         .tooltip.show {
             opacity: 1;
         }
-        
+
         .tooltip-title {
             font-weight: 700;
             margin-bottom: 12px;
@@ -176,31 +177,31 @@
             border-bottom: 2px solid #444;
             padding-bottom: 8px;
         }
-        
+
         .tooltip-row {
             display: flex;
             justify-content: space-between;
             margin: 6px 0;
             gap: 20px;
         }
-        
+
         .tooltip-label {
             color: #888;
             font-weight: 500;
         }
-        
+
         .tooltip-value {
             color: #e0e0e0;
             font-family: 'Monaco', 'Courier New', monospace;
             font-weight: 600;
         }
-        
+
         .tooltip-section {
             margin-top: 12px;
             padding-top: 12px;
             border-top: 1px solid #333;
         }
-        
+
         .badge {
             display: inline-block;
             padding: 3px 8px;
@@ -209,13 +210,29 @@
             font-weight: 600;
             text-transform: uppercase;
         }
-        
-        .badge.router { background: rgba(76, 175, 80, 0.3); color: #4caf50; }
-        .badge.repeater { background: rgba(33, 150, 243, 0.3); color: #2196f3; }
-        .badge.powerline { background: rgba(255, 152, 0, 0.3); color: #ff9800; }
-        .badge.online { background: rgba(76, 175, 80, 0.3); color: #4caf50; }
+
+        .badge.router {
+            background: rgba(76, 175, 80, 0.3);
+            color: #4caf50;
+        }
+
+        .badge.repeater {
+            background: rgba(33, 150, 243, 0.3);
+            color: #2196f3;
+        }
+
+        .badge.powerline {
+            background: rgba(255, 152, 0, 0.3);
+            color: #ff9800;
+        }
+
+        .badge.online {
+            background: rgba(76, 175, 80, 0.3);
+            color: #4caf50;
+        }
     </style>
 </head>
+
 <body>
     <header>
         <div>
@@ -232,9 +249,9 @@
             <a href="/graph" class="nav-link active">🕸️ Graph</a>
         </div>
     </header>
-    
+
     <svg id="topology"></svg>
-    
+
     <div class="tooltip" id="tooltip">
         <div class="tooltip-title" id="tooltip-title"></div>
         <div id="tooltip-content"></div>
@@ -242,18 +259,18 @@
 
     <script>
         // Topology data from backend
-        const topologyData = {{ topology|tojson }};
-        
+        const topologyData = {{ topology| tojson }};
+
         // SVG setup
         const width = window.innerWidth;
         const height = window.innerHeight - 100;
-        
+
         const svg = d3.select("#topology")
             .attr("width", width)
             .attr("height", height);
-        
+
         const tooltip = d3.select("#tooltip");
-        
+
         // Create force simulation
         const simulation = d3.forceSimulation(topologyData.nodes)
             .force("link", d3.forceLink(topologyData.links)
@@ -264,7 +281,7 @@
             .force("center", d3.forceCenter(width / 2, height / 2))
             .force("collision", d3.forceCollide()
                 .radius(d => d.is_router ? 50 : 35));
-        
+
         // Create links
         const link = svg.append("g")
             .selectAll("line")
@@ -272,7 +289,7 @@
             .join("line")
             .attr("class", d => `link ${d.type}`)
             .attr("stroke-width", 2);
-        
+
         // Create nodes
         const node = svg.append("g")
             .selectAll("g")
@@ -283,18 +300,18 @@
                 .on("start", dragstarted)
                 .on("drag", dragged)
                 .on("end", dragended));
-        
+
         // Node circles - size based on type
         node.append("circle")
             .attr("r", d => d.is_router ? 35 : 25);
-        
+
         // Node labels
         node.append("text")
             .attr("dy", d => d.is_router ? 50 : 40)
             .text(d => d.name)
             .style("font-size", "13px")
             .style("font-weight", "600");
-        
+
         // Node icons (emoji)
         node.append("text")
             .attr("class", "icon")
@@ -308,7 +325,7 @@
                 if (d.type === 'powerline') return '⚡';
                 return '🔌';
             });
-        
+
         // Format bytes
         function formatBytes(bytes) {
             if (bytes === 0) return '0 B';
@@ -317,15 +334,15 @@
             if (bytes >= 1024) return (bytes / 1024).toFixed(2) + ' KB';
             return bytes + ' B';
         }
-        
+
         // Tooltip events
-        node.on("mouseover", function(event, d) {
+        node.on("mouseover", function (event, d) {
             tooltip.classed("show", true);
             document.getElementById("tooltip-title").innerHTML = `${d.name} <span class="badge ${d.type}">${d.type}</span>`;
-            
+
             const ipDisplay = d.ip || 'N/A';
             const macDisplay = d.mac || 'N/A';
-            
+
             document.getElementById("tooltip-content").innerHTML = `
                 <div class="tooltip-row">
                     <span class="tooltip-label">IP Address:</span>
@@ -359,30 +376,30 @@
                 </div>
             `;
         })
-        .on("mousemove", function(event) {
-            const tooltipNode = tooltip.node();
-            const tooltipWidth = tooltipNode.offsetWidth;
-            const tooltipHeight = tooltipNode.offsetHeight;
-            
-            let left = event.pageX + 15;
-            let top = event.pageY - 15;
-            
-            // Keep tooltip in viewport
-            if (left + tooltipWidth > window.innerWidth) {
-                left = event.pageX - tooltipWidth - 15;
-            }
-            if (top + tooltipHeight > window.innerHeight) {
-                top = window.innerHeight - tooltipHeight - 10;
-            }
-            
-            tooltip
-                .style("left", left + "px")
-                .style("top", top + "px");
-        })
-        .on("mouseout", function() {
-            tooltip.classed("show", false);
-        });
-        
+            .on("mousemove", function (event) {
+                const tooltipNode = tooltip.node();
+                const tooltipWidth = tooltipNode.offsetWidth;
+                const tooltipHeight = tooltipNode.offsetHeight;
+
+                let left = event.pageX + 15;
+                let top = event.pageY - 15;
+
+                // Keep tooltip in viewport
+                if (left + tooltipWidth > window.innerWidth) {
+                    left = event.pageX - tooltipWidth - 15;
+                }
+                if (top + tooltipHeight > window.innerHeight) {
+                    top = window.innerHeight - tooltipHeight - 10;
+                }
+
+                tooltip
+                    .style("left", left + "px")
+                    .style("top", top + "px");
+            })
+            .on("mouseout", function () {
+                tooltip.classed("show", false);
+            });
+
         // Update positions on tick
         simulation.on("tick", () => {
             link
@@ -390,28 +407,28 @@
                 .attr("y1", d => d.source.y)
                 .attr("x2", d => d.target.x)
                 .attr("y2", d => d.target.y);
-            
+
             node.attr("transform", d => `translate(${d.x},${d.y})`);
         });
-        
+
         // Drag functions
         function dragstarted(event, d) {
             if (!event.active) simulation.alphaTarget(0.3).restart();
             d.fx = d.x;
             d.fy = d.y;
         }
-        
+
         function dragged(event, d) {
             d.fx = event.x;
             d.fy = event.y;
         }
-        
+
         function dragended(event, d) {
             if (!event.active) simulation.alphaTarget(0);
             d.fx = null;
             d.fy = null;
         }
-        
+
         // Resize handler
         window.addEventListener('resize', () => {
             const newWidth = window.innerWidth;
@@ -422,4 +439,5 @@
         });
     </script>
 </body>
+
 </html>
