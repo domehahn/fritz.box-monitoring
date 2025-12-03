@@ -295,7 +295,8 @@ class FritzPrometheusExporter:
         for node in nodes:
             # Only export metrics for active nodes or router
             if node.is_router or node.extra.get('active', True):
-                node_type = 'router' if node.is_router else ('repeater' if node.is_repeater else 'powerline')
+                # Priority: router > powerline > repeater (powerlines can also have repeater flags)
+                node_type = 'router' if node.is_router else ('powerline' if node.is_powerline else 'repeater')
                 is_active = node.extra.get('active', True)
                 model = node.extra.get('model', node.name)
                 parent = node.parent_node or ""
@@ -453,7 +454,8 @@ class FritzPrometheusExporter:
                         count += 1
             return count
 
-        repeater_nodes = {n.mac: n for n in nodes if n.is_repeater}
+        # Export repeater device counts (exclude powerline nodes to avoid duplicates)
+        repeater_nodes = {n.mac: n for n in nodes if n.is_repeater and not n.is_powerline}
         for mac, node in repeater_nodes.items():
             # Only export metrics for active nodes
             if node.extra.get('active', True):
@@ -506,7 +508,8 @@ class FritzPrometheusExporter:
         for node in nodes:
             # Only export traffic for active nodes or router
             if node.is_router or node.extra.get('active', True):
-                node_type = 'router' if node.is_router else ('repeater' if node.is_repeater else 'powerline')
+                # Priority: router > powerline > repeater
+                node_type = 'router' if node.is_router else ('powerline' if node.is_powerline else 'repeater')
                 self.node_rx_bytes_total.labels(
                     name=node.name,
                     mac=node.mac,
