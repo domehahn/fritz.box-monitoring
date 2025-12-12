@@ -2081,23 +2081,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Time"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 180
-              },
-              {
-                "id": "unit",
-                "value": "dateTimeFromNow"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Event"
+              "options": "Status"
             },
             "properties": [
               {
@@ -2107,11 +2091,11 @@
                     "options": {
                       "0": {
                         "color": "red",
-                        "text": "\ud83d\udd34 Disconnected"
+                        "text": "🔴 Offline"
                       },
                       "1": {
                         "color": "green",
-                        "text": "\ud83d\udfe2 Connected"
+                        "text": "🟢 Online"
                       }
                     },
                     "type": "value"
@@ -2127,7 +2111,7 @@
               },
               {
                 "id": "custom.width",
-                "value": 150
+                "value": 120
               }
             ]
           },
@@ -2195,15 +2179,15 @@
             "uid": "PBFA97CFB590B2093"
           },
           "editorMode": "code",
-          "expr": "fritz_device_up{powerline=\"false\",repeater=\"false\"}",
+          "expr": "fritz_device_up",
           "format": "table",
-          "instant": false,
+          "instant": true,
           "legendFormat": "__auto",
-          "range": true,
+          "range": false,
           "refId": "A"
         }
       ],
-      "title": "\ud83d\udd52 Connection Events mit genauer Uhrzeit",
+      "title": "📋 Device Status Overview",
       "transformations": [
         {
           "id": "organize",
@@ -2211,15 +2195,12 @@
             "excludeByName": {
               "__name__": true,
               "instance": true,
-              "ip": false,
               "job": true,
-              "mac": false,
               "node_mac": true,
               "powerline": true,
               "repeater": true
             },
             "indexByName": {
-              "Time": 0,
               "Value": 6,
               "interface": 2,
               "ip": 4,
@@ -2228,8 +2209,7 @@
               "node": 3
             },
             "renameByName": {
-              "Time": "Time",
-              "Value": "Event",
+              "Value": "Status",
               "interface": "Interface",
               "ip": "IP",
               "mac": "MAC",
@@ -2245,7 +2225,7 @@
             "sort": [
               {
                 "desc": true,
-                "field": "Time"
+                "field": "Status"
               }
             ]
           }

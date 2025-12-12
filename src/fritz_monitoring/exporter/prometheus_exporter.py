@@ -291,6 +291,10 @@ class FritzPrometheusExporter:
             self.wlan_packets_sent_total.set(wlan_stats.get('total_packets_sent', 0))
             self.wlan_packets_received_total.set(wlan_stats.get('total_packets_received', 0))
 
+        # Clear old node metrics to avoid duplicates with different label combinations
+        self.node_up.clear()
+        self.node_info.clear()
+        
         # Update node metrics
         for node in nodes:
             # Only export metrics for active nodes or router
@@ -454,6 +458,10 @@ class FritzPrometheusExporter:
                         count += 1
             return count
 
+        # Clear device count metrics to avoid duplicates
+        self.repeater_connected_devices.clear()
+        self.powerline_connected_devices.clear()
+        
         # Export repeater device counts (exclude powerline nodes to avoid duplicates)
         repeater_nodes = {n.mac: n for n in nodes if n.is_repeater and not n.is_powerline}
         for mac, node in repeater_nodes.items():
@@ -470,6 +478,9 @@ class FritzPrometheusExporter:
                 count = count_devices_direct(mac)
                 self.powerline_connected_devices.labels(node.name, mac).set(count)
 
+        # Clear node hierarchy metrics to avoid duplicates
+        self.node_parent.clear()
+        
         # Export node hierarchy (parent-child relationships)
         for node in nodes:
             # Only export hierarchy for active nodes or router
@@ -504,6 +515,12 @@ class FritzPrometheusExporter:
                 if device.tx_bytes_total:
                     node_traffic[node_mac]['tx'] += device.tx_bytes_total
 
+        # Clear traffic metrics to avoid duplicates
+        self.node_rx_bytes_total.clear()
+        self.node_tx_bytes_total.clear()
+        self.node_link_rx_kbps.clear()
+        self.node_link_tx_kbps.clear()
+        
         # Export node traffic metrics
         for node in nodes:
             # Only export traffic for active nodes or router
