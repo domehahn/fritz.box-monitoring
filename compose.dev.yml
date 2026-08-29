@@ -1,0 +1,60 @@
+name: fritz-monitoring-dev
+
+services:
+  fritz-exporter:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.exporter
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./src:/app/src
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./config/prometheus/rules:/etc/prometheus/rules
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+
+  loki:
+    image: grafana/loki:3.1.1
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./config/loki/loki-config.yml:/etc/loki/local-config.yaml
+      - loki_data:/loki
+
+  alloy:
+    image: grafana/alloy:v1.3.1
+    ports:
+      - "1514:1514/udp"
+    volumes:
+      - ./config/alloy/config.alloy:/etc/alloy/config.alloy
+    command: run /etc/alloy/config.alloy
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./config/grafana/provisioning:/etc/grafana/provisioning
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+
+volumes:
+  prometheus_data:
+  loki_data:
+  grafana_data:
+

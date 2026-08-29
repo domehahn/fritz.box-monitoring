@@ -1,194 +1,102 @@
+"""Async HTTP Metrics Server with /healthz, /readyz, and /metrics endpoints."""
+import asyncio
+from typing import Optional
+from datetime import datetime, timezone
 from aiohttp import web
-import json
-from .prometheus_exporter import FritzPrometheusExporter
-from ..avm.discovery import MeshDiscovery
-from ..avm.connection import FritzClient
-from ..avm.logs import FritzLogCollector
+from loguru import logger
+
+from fritz_avm_client import Settings as FritzSettings
+from ..collector import CollectorService
 from ..config import Settings
+from .prometheus_exporter import FritzPrometheusExporter
+
 
 class MetricsServer:
-    def __init__(self, settings: Settings) -> None:
+    """HTTP web server serving Prometheus metrics and health endpoints."""
+
+    def __init__(self, settings: Settings, collector_service: Optional[CollectorService] = None) -> None:
         self.settings = settings
-        self.exporter = FritzPrometheusExporter()
-        self.fritz_client = FritzClient(settings)
-        self.discovery = MeshDiscovery(self.fritz_client)
-        self.log_collector = FritzLogCollector(self.fritz_client)
+        fritz_settings = FritzSettings(
+            fritz_host=settings.fritz_host,
+            fritz_port=settings.fritz_port,
+            fritz_username=settings.fritz_username,
+            fritz_password=settings.resolved_password,
+            fritz_password_file=settings.fritz_password_file,
+            fritz_use_tls=settings.fritz_use_tls,
+            fritz_timeout=settings.fritz_timeout,
+        )
+
+        if collector_service is None:
+            self.collector_service = CollectorService(
+                fritz_settings=fritz_settings,
+                interval_seconds=settings.exporter_collection_interval,
+            )
+        else:
+            self.collector_service = collector_service
+
+        self.exporter = FritzPrometheusExporter(collector_service=self.collector_service)
         self.app = web.Application()
         self.app.add_routes([
             web.get("/metrics", self.handle_metrics),
-            web.get("/logs", self.handle_logs),
-            web.get("/network_graph", self.handle_network_graph),
-            web.get("/network_graph_dataframe", self.handle_network_graph_dataframe),
+            web.get("/healthz", self.handle_healthz),
+            web.get("/readyz", self.handle_readyz),
         ])
 
     async def handle_metrics(self, request: web.Request) -> web.Response:
-        # Get real data from Fritz!Box
-        try:
-            router_data = self.fritz_client.get_wan_stats()
-            wlan_stats = self.fritz_client.get_wlan_traffic_stats()
-            nodes, devices = self.discovery.discover()
-            log_stats = self.log_collector.get_log_stats()
-
-            self.exporter.update_from_snapshot(router_data, wlan_stats, nodes, devices)
-            self.exporter.update_log_metrics(log_stats)
-        except Exception as e:
-            print(f"Error collecting metrics: {e}")
-            # Return empty metrics on error
-            router_data = {}
-            wlan_stats = {}
-            nodes, devices = [], []
-            log_stats = {'total': 0}
-            self.exporter.update_from_snapshot(router_data, wlan_stats, nodes, devices)
-            self.exporter.update_log_metrics(log_stats)
-
+        """Endpoint serving Prometheus metrics."""
         return web.Response(
             body=self.exporter.render(),
             content_type="text/plain",
+            charset="utf-8",
         )
 
-    async def handle_logs(self, request: web.Request) -> web.Response:
-        """Expose logs in JSON format for Loki/Promtail."""
-        try:
-            import json
-            logs = self.log_collector.get_logs()
+    async def handle_healthz(self, request: web.Request) -> web.Response:
+        """Liveness endpoint (returns 200 OK if exporter process is running)."""
+        return web.Response(
+            text="OK",
+            content_type="text/plain",
+            status=200,
+        )
 
-            # Convert to JSON Lines format for easy consumption
-            log_lines = []
-            for log in logs:
-                log_lines.append(json.dumps({
-                    'timestamp': log.timestamp.isoformat(),
-                    'message': log.message,
-                    'severity': log.severity,
-                    'source': log.source or '',
-                    'category': log.category or '',
-                }))
+    async def handle_readyz(self, request: web.Request) -> web.Response:
+        """Readiness endpoint (returns 200 OK if fresh snapshot exists, 503 otherwise)."""
+        snapshot = self.collector_service.get_snapshot()
+        state = self.collector_service.get_state()
 
+        if snapshot is None or state.last_success is None:
             return web.Response(
-                body='\n'.join(log_lines),
-                content_type="application/x-ndjson",
-            )
-        except Exception as e:
-            print(f"Error fetching logs: {e}")
-            return web.Response(
-                body='{"error": "Failed to fetch logs"}',
-                content_type="application/json",
-                status=500,
+                text="Service Unavailable: No snapshot collected yet",
+                content_type="text/plain",
+                status=503,
             )
 
-    async def handle_network_graph(self, request: web.Request) -> web.Response:
-        """Expose network topology as JSON for Grafana NodeGraph."""
-        try:
-            import json
-            nodes, devices = self.discovery.discover()
+        now = datetime.now(timezone.utc)
+        age = (now - state.last_success).total_seconds()
+        max_age = self.settings.exporter_ready_max_age
 
-            # Build graph structure
-            graph_nodes = []
-            graph_edges = []
-            edge_counter = 0
-
-            for node in nodes:
-                # Determine node type
-                node_type = "router" if node.is_router else ("repeater" if node.is_repeater else ("powerline" if node.is_powerline else "unknown"))
-
-                # Add node
-                graph_nodes.append({
-                    "id": node.mac,
-                    "title": node.name,
-                    "subTitle": node_type,
-                    "mainStat": node.ip or "",
-                })
-
-                # Add edge if node has a parent
-                if hasattr(node, 'parent_node') and node.parent_node:
-                    edge_counter += 1
-                    graph_edges.append({
-                        "id": f"edge_{edge_counter}",
-                        "source": node.parent_node.mac if hasattr(node.parent_node, 'mac') else node.parent_node,
-                        "target": node.mac,
-                    })
-
-            response_data = {
-                "nodes": graph_nodes,
-                "edges": graph_edges
-            }
-
+        if age > max_age:
             return web.Response(
-                body=json.dumps(response_data, indent=2),
-                content_type="application/json",
-                headers={
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Methods': 'GET',
-                    'Access-Control-Allow-Headers': 'Content-Type'
-                }
-            )
-        except Exception as e:
-            print(f"Error generating network graph: {e}")
-            import traceback
-            traceback.print_exc()
-            return web.Response(
-                body=json.dumps({"error": str(e), "nodes": [], "edges": []}),
-                content_type="application/json",
-                status=500,
+                text=f"Service Unavailable: Snapshot age ({age:.1f}s) exceeds threshold ({max_age:.1f}s)",
+                content_type="text/plain",
+                status=503,
             )
 
-    async def handle_network_graph_dataframe(self, request: web.Request) -> web.Response:
-        """Return network topology in Grafana Arrow format for nodeGraph."""
-        try:
-            nodes, _ = self.discovery.discover()
+        return web.Response(
+            text=f"OK (Snapshot age: {age:.1f}s)",
+            content_type="text/plain",
+            status=200,
+        )
 
-            # Build combined node-edge table
-            rows = []
-
-            for node in nodes:
-                node_type = "router" if node.is_router else ("repeater" if node.is_repeater else "powerline")
-
-                # Add row for this node and its edge
-                if hasattr(node, 'parent_node') and node.parent_node:
-                    parent_mac = node.parent_node.mac if hasattr(node.parent_node, 'mac') else str(node.parent_node)
-                    rows.append({
-                        "id": node.mac,
-                        "title": node.name,
-                        "subTitle": node_type,
-                        "mainStat": node.ip or "",
-                        "arc__source": parent_mac,
-                        "arc__target": node.mac
-                    })
-                else:
-                    # Root node (no parent)
-                    rows.append({
-                        "id": node.mac,
-                        "title": node.name,
-                        "subTitle": node_type,
-                        "mainStat": node.ip or "",
-                        "arc__source": "",
-                        "arc__target": ""
-                    })
-
-            return web.Response(
-                body=json.dumps(rows),
-                content_type="application/json",
-                headers={
-                    'Access-Control-Allow-Origin': '*',
-                    'Access-Control-Allow-Methods': 'GET',
-                    'Access-Control-Allow-Headers': 'Content-Type'
-                }
-            )
-        except Exception as e:
-            print(f"Error generating network graph dataframe: {e}")
-            import traceback
-            traceback.print_exc()
-            return web.Response(
-                body=json.dumps([]),
-                content_type="application/json",
-                status=500,
-            )
-
-    async def run(self):
+    async def run(self) -> None:
+        """Start the metrics server and background collector."""
+        self.collector_service.start()
         runner = web.AppRunner(self.app)
         await runner.setup()
         site = web.TCPSite(runner, self.settings.exporter_host, self.settings.exporter_port)
         await site.start()
-        print(f"Serving metrics on http://{self.settings.exporter_host}:{self.settings.exporter_port}/metrics")
-        import asyncio
-        while True:
-            await asyncio.sleep(3600)
+        logger.info(f"Serving metrics on http://{self.settings.exporter_host}:{self.settings.exporter_port}/metrics")
+        try:
+            while True:
+                await asyncio.sleep(3600)
+        finally:
+            self.collector_service.stop()

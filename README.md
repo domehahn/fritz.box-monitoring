@@ -1,175 +1,49 @@
-# Fritz!Box Mesh Network Monitoring
+# FRITZ!Box Production Monitoring Stack
 
-Vollständig **dynamisches** Monitoring-System für Fritz!Box Mesh-Netzwerke mit automatischer Geräte-Erkennung.
+Production-grade observability stack for AVM FRITZ!Box routers, mesh repeaters, and powerline adapters using Prometheus, Grafana, Loki, Grafana Alloy, and `fritz-avm-client`.
 
-## 🚀 Features
+---
 
-- **✨ Automatische Mesh-Erkennung**: Keine manuelle Konfiguration für neue Repeater/Powerline-Adapter nötig
-- **🔄 IP-Änderungen werden automatisch erkannt**: Keine Container-Neustarts erforderlich
-- **🌐 Echzeit-Netzwerk-Topologie**: Übersicht über alle Mesh-Knoten und Verbindungen
-- **📱 Client-Tracking**: Verbindungs-/Trennungs-Events mit Zeitstempeln
-- **📋 Event-Logging**: Detaillierte Logs für alle Netzwerk-Ereignisse
-- **📊 Prometheus-Metriken**: Monitoring für alle Geräte ohne manuelle Konfiguration
+## Features
 
-## Quickstart
+- **Decoupled Architecture**: Asynchronous background collector with atomic snapshot swaps. Fast, deterministic `/metrics` scrapes without TR-064 timeouts.
+- **Mesh Topology Monitoring**: Real-time link speeds (`rx_kbps`/`tx_kbps`), node hierarchy, signal strength, and connected device traffic.
+- **Syslog Logging Pipeline**: RFC3164 Syslog UDP ingestion via Grafana Alloy to Loki (persisted under `/loki` TSDB v13).
+- **Hardened Device Manager**: Optional web UI (Profile `admin`) secured with HTTP Basic/Session auth, CSRF protection, and MAC address validation.
+- **Supply Chain Security**: Multi-stage non-root containers, dropped Linux capabilities (`cap_drop: ALL`), Docker Secrets, and zero floating tags.
 
-```bash
-# .env Datei erstellen
-cp .env.example .env
+---
 
-# Zugangsdaten in .env eintragen
-nano .env
+## Quick Start (Production)
 
-# Stack starten
-docker-compose up -d
-```
-
-## 🏗️ Architektur (Dynamisch!)
-
-Das System besteht aus **nur 7 Containern**:
-
-1. **fritz_exporter**: Haupt-Exporter für Fritz!Box Router
-2. **mesh_discovery**: 🎯 Automatische Mesh-Topologie-Erkennung
-3. **prometheus**: Metriken-Sammlung mit dynamischen Targets
-4. **loki**: Log-Aggregation
-5. **promtail**: Log-Sammler
-6. **log_pusher**: Event-Log-Pusher
-7. **grafana**: Visualisierung & Dashboards
-
-### Wie funktioniert die automatische Erkennung?
-
-1. **Mesh Discovery Service** fragt alle 5 Minuten die Fritz!Box Mesh-Topologie ab
-2. Generiert automatisch Prometheus-Targets für alle gefundenen Geräte
-3. Schreibt Targets in `/prometheus/targets/mesh-targets.json`
-4. **Prometheus** lädt die Targets automatisch alle 60 Sekunden neu
-5. Alle Metriken werden **ohne manuelle Konfiguration** gesammelt
-
-**⚡ Wichtig**: Keine Docker-Container-Neustarts nötig bei Netzwerk-Änderungen!
-
-## Produktivbetrieb & Setup
-
-1. Trage deine Fritz!Box-Zugangsdaten in `.env` ein.
-2. Starte den Stack:
+1. Create secret files:
    ```bash
-   docker compose up --build -d
+   mkdir -p secrets
+   echo "my_fritz_password" > secrets/fritz_password.txt
+   echo "my_grafana_password" > secrets/grafana_admin_password.txt
+   echo "my_device_manager_password" > secrets/device_manager_admin_password.txt
    ```
-3. Dienste erreichbar:
-   - Exporter: [http://localhost:8000/metrics](http://localhost:8000/metrics)
-   - Prometheus: [http://localhost:9090](http://localhost:9090)
-   - Grafana: [http://localhost:3000](http://localhost:3000) (admin/admin)
-   - Loki: [http://localhost:3100](http://localhost:3100)
 
-### Fritz!Box Logging-Weiterleitung
-- In der Fritz!Box unter "System > Ereignisse > Push-Service > Einstellungen" → "Remote Logging" aktivieren.
-- Ziel-IP: Docker-Host, Port: 1514 (UDP)
+2. Copy production environment file:
+   ```bash
+   cp .env.production.example .env.production
+   ```
 
-### Dashboards
-- **Home Overview**: Wird automatisch provisioniert
-- **Panels**:
-  - 🌐 Mesh-Netzwerk Topologie
-  - 📊 Traffic-Übersicht
-  - 🟢 Online Geräte
-  - 🔴 Offline Geräte
-  - 🔄 Connection Event Log
-  - 🕒 Timeline
+3. Launch production stack:
+   ```bash
+   docker compose --env-file .env.production -f compose.prod.yml up -d
+   ```
 
-## 🔄 Geräte hinzufügen/entfernen
+4. Access Grafana at `http://127.0.0.1:3000`.
 
-**Das ist der Clou**: Du musst **NICHTS** tun!
+---
 
-- ✅ Neuer Repeater gekauft? → Einfach in Fritz!Box Mesh integrieren, fertig!
-- ✅ IP-Adresse geändert? → Wird automatisch erkannt (max. 5 Min.)
-- ✅ Gerät ausgetauscht? → Automatisch im Dashboard sichtbar
-- ✅ Powerline-Adapter entfernt? → Verschwindet automatisch aus dem Monitoring
+## Documentation
 
-Das System erkennt **alle Änderungen automatisch**.
-
-## 🔧 Konfiguration
-
-### Discovery-Intervall ändern
-
-In `docker-compose.yml`:
-```yaml
-mesh_discovery:
-  environment:
-    - DISCOVERY_INTERVAL=300  # Sekunden (Standard: 5 Minuten)
-```
-
-### Prometheus Reload-Intervall
-
-In `config/prometheus.yml`:
-```yaml
-file_sd_configs:
-  - files:
-      - /prometheus/targets/mesh-targets.json
-    refresh_interval: 1m  # Alle 60 Sekunden neu laden
-```
-
-Siehe `.env.example` und `src/fritz_monitoring/config.py` für alle Optionen.
-
-## 🐛 Debugging
-
-### Mesh Discovery Service prüfen:
-```bash
-# Logs anzeigen
-docker-compose logs -f mesh_discovery
-
-# Target-Datei prüfen
-docker exec $(docker ps -q -f name=mesh_discovery) cat /prometheus/targets/mesh-targets.json
-```
-
-### Prometheus Targets anzeigen:
-Öffne: `http://localhost:9090/targets`
-
-Dort siehst du:
-- **fritz_main**: Haupt-Router (statisch)
-- **fritz_mesh_dynamic**: Alle auto-erkannten Mesh-Geräte
-
-### Container-Status:
-```bash
-docker-compose ps
-docker-compose logs -f <service-name>
-```
-
-## 📁 Projekt-Struktur
-
-```
-fritz.box-monitoring/
-├── config/
-│   ├── prometheus.yml              # Prometheus mit file_sd_configs
-│   ├── loki/                       # Log-Aggregation
-│   ├── promtail/                   # Log-Sammler
-│   └── grafana/                    # Auto-provisionierte Dashboards
-├── docker/
-│   ├── Dockerfile.exporter         # Main Exporter
-│   ├── Dockerfile.discovery        # 🎯 Mesh Discovery Service
-│   └── Dockerfile.log_pusher       # Event Log Pusher
-├── src/
-│   └── fritz_monitoring/
-│       ├── exporter/               # Prometheus Exporter
-│       ├── discovery/              # 🎯 Mesh Discovery Logic
-│       │   └── mesh_discovery.py   # Automatische Geräte-Erkennung
-│       └── utils/                  # Hilfsfunktionen
-├── docker-compose.yml              # 7 Container (statt 12!)
-└── .env                            # Credentials (nicht in Git!)
-```
-
-## 🔐 Sicherheit
-
-- **Nie** `.env` in Git committen (bereits in `.gitignore`)
-- Fritz!Box Credentials nur lokal speichern
-- Grafana Admin-Passwort nach erstem Login ändern
-- Ports nur im lokalen Netzwerk öffnen
-
-## 🆘 Support
-
-Bei Problemen:
-
-1. Logs prüfen: `docker-compose logs -f`
-2. Prometheus Targets prüfen: `http://localhost:9090/targets`
-3. Mesh Discovery Status: `docker-compose logs mesh_discovery`
-4. Container neu starten: `docker-compose restart <service>`
-
-## Lizenz
-MIT
-
+- [Architecture Guide](file:///Users/dominikhahn/dev/workspace/fritz.box-monitoring/docs/ARCHITECTURE.md)
+- [Production Deployment Guide](file:///Users/dominikhahn/dev/workspace/fritz.box-monitoring/docs/PRODUCTION.md)
+- [Security Guide](file:///Users/dominikhahn/dev/workspace/fritz.box-monitoring/docs/SECURITY.md)
+- [Operations & Runbook](file:///Users/dominikhahn/dev/workspace/fritz.box-monitoring/docs/RUNBOOK.md)
+- [Backup & Restore Guide](file:///Users/dominikhahn/dev/workspace/fritz.box-monitoring/docs/BACKUP_RESTORE.md)
+- [Migration Guide](file:///Users/dominikhahn/dev/workspace/fritz.box-monitoring/docs/MIGRATION.md)
+- [Production Readiness Report](file:///Users/dominikhahn/dev/workspace/fritz.box-monitoring/PRODUCTION_READINESS_REPORT.md)

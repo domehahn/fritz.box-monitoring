@@ -1,0 +1,43 @@
+name: Container Build & Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-scan:
+    name: Build & Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout fritz-avm-client dependency
+        uses: actions/checkout@v4
+        with:
+          repository: domehahn/fritz-avm-client
+          path: fritz-avm-client
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Exporter Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.exporter
+          load: true
+          tags: fritz-exporter:test
+
+      - name: Build Device Manager Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.device_manager
+          load: true
+          tags: device-manager:test

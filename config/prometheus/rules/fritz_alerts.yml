@@ -1,0 +1,38 @@
+groups:
+  - name: fritz_exporter_alerts
+    rules:
+      - alert: FritzExporterDown
+        expr: up{job="fritz"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Fritz Exporter instance is down"
+          description: "Prometheus cannot reach fritz-exporter:8000."
+
+      - alert: FritzScrapeFailed
+        expr: fritz_scrape_success == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Fritz!Box snapshot collection failing"
+          description: "fritz-exporter has failed to collect data from Fritz!Box for more than 5 minutes."
+
+      - alert: FritzSnapshotStale
+        expr: fritz_snapshot_age_seconds > 180
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Fritz!Box snapshot data is stale"
+          description: "The latest snapshot age is {{ $value }}s, exceeding threshold of 180s."
+
+      - alert: FritzHighScrapeFailureRate
+        expr: fritz_consecutive_scrape_failures >= 5
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High consecutive scrape failures on Fritz!Box"
+          description: "fritz-exporter has failed {{ $value }} consecutive times."

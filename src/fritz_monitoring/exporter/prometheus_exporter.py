@@ -1,11 +1,60 @@
-from prometheus_client import CollectorRegistry, Gauge, generate_latest
-from ..avm.models import Node, Device
+"""Prometheus exporter for Fritz!Box metrics using atomic background snapshots."""
+from datetime import datetime, timezone
+from typing import Optional
+from prometheus_client import CollectorRegistry, Gauge, Counter, generate_latest
+
+from fritz_avm_client import Node, Device
+from ..collector import CollectorService, MonitoringSnapshot
+
 
 class FritzPrometheusExporter:
-    def __init__(self) -> None:
+    """Exporter rendering Prometheus metrics from MonitoringSnapshot."""
+
+    def __init__(self, collector_service: Optional[CollectorService] = None) -> None:
+        self.collector_service = collector_service
         self.registry = CollectorRegistry()
 
-        # Router metrics
+        # Exporter Self-Metrics
+        self.scrape_success = Gauge(
+            "fritz_scrape_success",
+            "1 if the last snapshot collection succeeded, 0 otherwise",
+            registry=self.registry,
+        )
+        self.scrape_duration_seconds = Gauge(
+            "fritz_scrape_duration_seconds",
+            "Duration of the last snapshot collection in seconds",
+            registry=self.registry,
+        )
+        self.scrape_errors_total = Counter(
+            "fritz_scrape_errors_total",
+            "Total number of collection errors by type",
+            ["type"],
+            registry=self.registry,
+        )
+        self.last_success_timestamp_seconds = Gauge(
+            "fritz_last_success_timestamp_seconds",
+            "Timestamp of the last successful collection pass",
+            registry=self.registry,
+        )
+        self.consecutive_scrape_failures = Gauge(
+            "fritz_consecutive_scrape_failures",
+            "Number of consecutive collection failures",
+            registry=self.registry,
+        )
+        self.snapshot_age_seconds = Gauge(
+            "fritz_snapshot_age_seconds",
+            "Age of the current snapshot in seconds",
+            registry=self.registry,
+        )
+        self.exporter_build_info = Gauge(
+            "fritz_exporter_build_info",
+            "Fritz Exporter build and version info",
+            ["version"],
+            registry=self.registry,
+        )
+        self.exporter_build_info.labels(version="1.0.0").set(1)
+
+        # Router WAN Metrics
         self.router_bytes_received_total = Gauge(
             "fritz_router_bytes_received_total",
             "Total WAN bytes received",
@@ -58,7 +107,7 @@ class FritzPrometheusExporter:
             registry=self.registry,
         )
 
-        # DSL line quality metrics
+        # DSL Line Quality Metrics
         self.router_dsl_downstream_attenuation = Gauge(
             "fritz_router_dsl_downstream_attenuation",
             "DSL downstream attenuation in dB",
@@ -80,7 +129,7 @@ class FritzPrometheusExporter:
             registry=self.registry,
         )
 
-        # System metrics (requires authentication)
+        # System Metrics
         self.router_cpu_temperature = Gauge(
             "fritz_router_cpu_temperature_celsius",
             "CPU temperature in Celsius",
@@ -88,7 +137,7 @@ class FritzPrometheusExporter:
             registry=self.registry,
         )
 
-        # Device count metrics
+        # Device Count Metrics
         self.total_devices = Gauge(
             "fritz_total_devices",
             "Total number of known devices",
@@ -105,55 +154,54 @@ class FritzPrometheusExporter:
             registry=self.registry,
         )
 
-        # WLAN interface metrics (works for both router and repeaters)
+        # WLAN Metrics
         self.wlan_packets_sent_total = Gauge(
             "fritz_wlan_packets_sent_total",
-            "Total WiFi packets sent across all WLAN interfaces",
+            "Total WiFi packets sent across all interfaces",
             registry=self.registry,
         )
         self.wlan_packets_received_total = Gauge(
             "fritz_wlan_packets_received_total",
-            "Total WiFi packets received across all WLAN interfaces",
+            "Total WiFi packets received across all interfaces",
             registry=self.registry,
         )
 
-        # Node metrics
+        # Node Metrics
         self.node_up = Gauge(
             "fritz_node_up",
             "1 if node is active, 0 otherwise",
             ["name", "mac", "type"],
             registry=self.registry,
         )
-
         self.node_info = Gauge(
             "fritz_node_info",
-            "Node information with labels (always 1)",
+            "Node information with labels (value=1)",
             ["name", "mac", "type", "model", "ip", "parent_name"],
             registry=self.registry,
         )
 
-        # Device metrics with labels
-        labels = ["mac", "name", "ip", "node", "node_mac", "interface", "repeater", "powerline"]
+        # Device Metrics
+        dev_labels = ["mac", "name", "ip", "node", "node_mac", "interface", "repeater", "powerline"]
         self.device_up = Gauge(
             "fritz_device_up",
             "1 if device is online, 0 otherwise",
-            labels,
+            dev_labels,
             registry=self.registry,
         )
         self.device_rx_bytes_total = Gauge(
             "fritz_device_rx_bytes_total",
-            "Total bytes received per device (if supported).",
-            labels,
+            "Total bytes received per device",
+            dev_labels,
             registry=self.registry,
         )
         self.device_tx_bytes_total = Gauge(
             "fritz_device_tx_bytes_total",
-            "Total bytes transmitted per device (if supported).",
-            labels,
+            "Total bytes transmitted per device",
+            dev_labels,
             registry=self.registry,
         )
 
-        # WLAN device metrics
+        # WLAN Device Metrics
         wlan_labels = ["mac", "name", "ip", "node", "node_mac"]
         self.device_wlan_signal_strength = Gauge(
             "fritz_device_wlan_signal_strength",
@@ -168,116 +216,78 @@ class FritzPrometheusExporter:
             registry=self.registry,
         )
 
-        # Per-repeater connected device count
-        self.repeater_connected_devices = Gauge(
-            "fritz_repeater_connected_devices",
-            "Number of devices connected to this repeater",
-            ["name", "mac"],
-            registry=self.registry,
-        )
-
-        # Per-powerline connected device count
-        self.powerline_connected_devices = Gauge(
-            "fritz_powerline_connected_devices",
-            "Number of devices connected to this powerline node",
-            ["name", "mac"],
-            registry=self.registry,
-        )
-
-        # Node hierarchy and connection metrics
-        self.node_parent = Gauge(
-            "fritz_node_parent",
-            "Parent node relationship (value=1 if this node connects to parent)",
-            ["name", "mac", "parent_name", "parent_mac"],
-            registry=self.registry,
-        )
-
-        self.node_rx_bytes_total = Gauge(
-            "fritz_node_rx_bytes_total",
-            "Total bytes received by this mesh node from all connected devices",
-            ["name", "mac", "type"],
-            registry=self.registry,
-        )
-
-        self.node_tx_bytes_total = Gauge(
-            "fritz_node_tx_bytes_total",
-            "Total bytes transmitted by this mesh node to all connected devices",
-            ["name", "mac", "type"],
-            registry=self.registry,
-        )
-
+        # Node Link Speeds & Traffic
         self.node_link_rx_kbps = Gauge(
             "fritz_node_link_rx_kbps",
-            "Current download rate in kbps for this mesh node's links",
+            "Current download link speed in kbps for mesh node",
             ["name", "mac", "type"],
             registry=self.registry,
         )
-
         self.node_link_tx_kbps = Gauge(
             "fritz_node_link_tx_kbps",
-            "Current upload rate in kbps for this mesh node's links",
+            "Current upload link speed in kbps for mesh node",
             ["name", "mac", "type"],
             registry=self.registry,
         )
 
-        # Log metrics
-        self.log_total = Gauge(
-            "fritz_log_total",
-            "Total number of log entries",
-            registry=self.registry,
-        )
-        self.log_by_severity = Gauge(
-            "fritz_log_by_severity",
-            "Number of log entries by severity",
-            ["severity"],
-            registry=self.registry,
-        )
-        self.log_by_category = Gauge(
-            "fritz_log_by_category",
-            "Number of log entries by category",
-            ["category"],
-            registry=self.registry,
-        )
-        self.log_by_source = Gauge(
-            "fritz_log_by_source",
-            "Number of log entries by source device",
-            ["source"],
-            registry=self.registry,
-        )
+    def render_snapshot(self, snapshot: Optional[MonitoringSnapshot], state: Optional[object] = None) -> None:
+        """Update metric values based on snapshot and collector state."""
+        now = datetime.now(timezone.utc)
 
-    def update_from_snapshot(self, router_data, wlan_stats, nodes: list[Node], devices: list[Device]) -> None:
-        # Update router metrics
-        if router_data:
-            self.router_bytes_received_total.set(router_data.get('bytes_received', 0))
-            self.router_bytes_sent_total.set(router_data.get('bytes_sent', 0))
-            self.router_uptime_seconds.set(router_data.get('uptime', 0))
-            self.router_max_byte_rate_up.set(router_data.get('max_byte_rate_up', 0))
-            self.router_max_byte_rate_down.set(router_data.get('max_byte_rate_down', 0))
+        if state is not None:
+            c_state = state
+            success = 1 if c_state.consecutive_failures == 0 and snapshot is not None else 0
+            self.scrape_success.set(success)
+            self.consecutive_scrape_failures.set(c_state.consecutive_failures)
 
-            # New metrics
-            self.router_current_bytes_received_rate.set(router_data.get('current_download_rate', 0))
-            self.router_current_bytes_sent_rate.set(router_data.get('current_upload_rate', 0))
-            self.router_connection_uptime_seconds.set(router_data.get('connection_uptime', 0))
-            self.router_is_connected.set(1 if router_data.get('is_connected', False) else 0)
+            if c_state.last_success:
+                ts = c_state.last_success.timestamp()
+                self.last_success_timestamp_seconds.set(ts)
+                self.snapshot_age_seconds.set(max(0.0, (now - c_state.last_success).total_seconds()))
 
-            # External IP as label
-            external_ip = router_data.get('external_ip', '')
-            if external_ip:
-                self.router_external_ip.labels(ip=external_ip).set(1)
+        if snapshot is None:
+            self.scrape_success.set(0)
+            return
 
-            # DSL quality metrics
-            self.router_dsl_downstream_attenuation.set(router_data.get('dsl_downstream_attenuation', 0))
-            self.router_dsl_upstream_attenuation.set(router_data.get('dsl_upstream_attenuation', 0))
-            self.router_dsl_downstream_noise_margin.set(router_data.get('dsl_downstream_noise_margin', 0))
-            self.router_dsl_upstream_noise_margin.set(router_data.get('dsl_upstream_noise_margin', 0))
+        self.scrape_duration_seconds.set(snapshot.collection_duration_seconds)
 
-            # CPU temperature
-            cpu_temps = router_data.get('cpu_temperatures', {})
-            for cpu_name, temp in cpu_temps.items():
+        # WAN Stats
+        wan = snapshot.wan
+        if wan:
+            self.router_bytes_received_total.set(wan.total_bytes_received or 0)
+            self.router_bytes_sent_total.set(wan.total_bytes_sent or 0)
+            self.router_uptime_seconds.set(wan.device_uptime or 0)
+            self.router_max_byte_rate_up.set(wan.max_upstream_rate or 0)
+            self.router_max_byte_rate_down.set(wan.max_downstream_rate or 0)
+            self.router_current_bytes_received_rate.set(wan.current_download_rate or 0)
+            self.router_current_bytes_sent_rate.set(wan.current_upload_rate or 0)
+            self.router_connection_uptime_seconds.set(wan.connection_uptime or 0)
+            self.router_is_connected.set(1 if wan.is_connected else 0)
+
+            if wan.external_ip:
+                self.router_external_ip.clear()
+                self.router_external_ip.labels(ip=wan.external_ip).set(1)
+
+            for cpu_name, temp in wan.cpu_temperatures.items():
                 if temp is not None:
                     self.router_cpu_temperature.labels(cpu=cpu_name).set(temp)
 
-        # Device count metrics
+        # DSL Stats
+        dsl = snapshot.dsl
+        if dsl:
+            self.router_dsl_downstream_attenuation.set(dsl.downstream_attenuation or 0.0)
+            self.router_dsl_upstream_attenuation.set(dsl.upstream_attenuation or 0.0)
+            self.router_dsl_downstream_noise_margin.set(dsl.downstream_noise_margin or 0.0)
+            self.router_dsl_upstream_noise_margin.set(dsl.upstream_noise_margin or 0.0)
+
+        # WLAN Stats
+        wlan = snapshot.wlan
+        if wlan:
+            self.wlan_packets_sent_total.set(wlan.total_packets_sent)
+            self.wlan_packets_received_total.set(wlan.total_packets_received)
+
+        # Device Counts
+        devices = snapshot.devices
         total_count = len(devices)
         online_count = sum(1 for d in devices if d.online)
         offline_count = total_count - online_count
@@ -286,289 +296,85 @@ class FritzPrometheusExporter:
         self.online_devices.set(online_count)
         self.offline_devices.set(offline_count)
 
-        # Update WLAN interface metrics
-        if wlan_stats:
-            self.wlan_packets_sent_total.set(wlan_stats.get('total_packets_sent', 0))
-            self.wlan_packets_received_total.set(wlan_stats.get('total_packets_received', 0))
-
-        # Clear old node metrics to avoid duplicates with different label combinations
+        # Render Nodes
         self.node_up.clear()
         self.node_info.clear()
-        
-        # Update node metrics
-        for node in nodes:
-            # Only export metrics for active nodes or router
-            if node.is_router or node.extra.get('active', True):
-                # Priority: router > powerline > repeater (powerlines can also have repeater flags)
-                node_type = 'router' if node.is_router else ('powerline' if node.is_powerline else 'repeater')
-                is_active = node.extra.get('active', True)
-                model = node.extra.get('model', node.name)
-                parent = node.parent_node or ""
-
-                self.node_up.labels(node.name, node.mac, node_type).set(1 if is_active else 0)
-                self.node_info.labels(
-                    name=node.name,
-                    mac=node.mac,
-                    type=node_type,
-                    model=model,
-                    ip=node.ip or "",
-                    parent_name=parent
-                ).set(1)
-
-        # Update device metrics
-        # Build a map from node name to MAC for quick lookup
-        node_name_to_mac = {n.name: n.mac for n in nodes}
-        # Build a map from node name to node object for type checking
-        node_name_to_obj = {n.name: n for n in nodes}
-
-        for device in devices:
-            node_mac = node_name_to_mac.get(device.connected_node, "")
-            # Determine if device is connected to a repeater or powerline
-            # Priority: router > powerline > repeater (a node can have multiple flags)
-            connected_node_obj = node_name_to_obj.get(device.connected_node)
-            if connected_node_obj:
-                # If connected to router, neither repeater nor powerline flags should be set
-                if connected_node_obj.is_router:
-                    is_repeater = "false"
-                    is_powerline = "false"
-                elif connected_node_obj.is_powerline:
-                    is_repeater = "false"
-                    is_powerline = "true"
-                elif connected_node_obj.is_repeater:
-                    is_repeater = "true"
-                    is_powerline = "false"
-                else:
-                    is_repeater = "false"
-                    is_powerline = "false"
-            else:
-                is_repeater = "false"
-                is_powerline = "false"
-
-            self.device_up.labels(
-                device.mac,
-                device.name,
-                device.ip or "",
-                device.connected_node or "",
-                node_mac,
-                device.interface_type or "",
-                is_repeater,
-                is_powerline
-            ).set(1 if device.online else 0)
-
-            if device.rx_bytes_total is not None:
-                self.device_rx_bytes_total.labels(
-                    device.mac,
-                    device.name,
-                    device.ip or "",
-                    device.connected_node or "",
-                    node_mac,
-                    device.interface_type or "",
-                    is_repeater,
-                    is_powerline
-                ).set(device.rx_bytes_total)
-
-            if device.tx_bytes_total is not None:
-                self.device_tx_bytes_total.labels(
-                    device.mac,
-                    device.name,
-                    device.ip or "",
-                    device.connected_node or "",
-                    node_mac,
-                    device.interface_type or "",
-                    is_repeater,
-                    is_powerline
-                ).set(device.tx_bytes_total)
-
-            # Export WLAN statistics for WiFi devices
-            if device.interface_type == "802.11" and device.extra:
-                signal = device.extra.get('signal_strength', 0)
-                speed = device.extra.get('speed', 0)
-                if signal or speed:
-                    self.device_wlan_signal_strength.labels(
-                        device.mac,
-                        device.name,
-                        device.ip or "",
-                        device.connected_node or "",
-                        node_mac
-                    ).set(signal)
-                    self.device_wlan_speed_mbps.labels(
-                        device.mac,
-                        device.name,
-                        device.ip or "",
-                        device.connected_node or "",
-                        node_mac
-                    ).set(speed)
-
-        # Update per-repeater counts - grouped by MAC to handle multiple repeaters with same name
-        # Build node name -> MAC mapping for accurate counting
-        node_name_to_mac_map = {n.name: n.mac for n in nodes}
-        node_macs = {n.mac for n in nodes}
-        node_names = {n.name for n in nodes}
-        mac_to_node_name = {n.mac: n.name for n in nodes}
-
-        # Build mesh hierarchy from node.parent_node
-        node_hierarchy = {}  # child_mac -> parent_mac
-        nodes_with_parents = 0
-        for n in nodes:
-            if n.parent_node:
-                nodes_with_parents += 1
-                if n.parent_node in node_name_to_mac_map:
-                    parent_mac = node_name_to_mac_map[n.parent_node]
-                    node_hierarchy[n.mac] = parent_mac
-                else:
-                    print(f"Warning: parent_node '{n.parent_node}' not found for {n.name}")
-
-        print(f"Nodes with parent_node: {nodes_with_parents}, in hierarchy: {len(node_hierarchy)}")
-        print(f"Node hierarchy: {node_hierarchy}")
-
-        # Filter out devices that are mesh nodes (by MAC) and deduplicate by MAC
-        # Keep only the first occurrence of each MAC (devices can appear multiple times with different connected_nodes)
-        seen_macs = set()
-        real_devices = []
-        router_node_name = next((n.name for n in nodes if n.is_router), "fritz.box")
-
-        for d in devices:
-            if d.mac not in node_macs and d.mac not in seen_macs and d.online:
-                seen_macs.add(d.mac)  # Mark as seen immediately to avoid duplicates
-
-                # Normalize Device-* or empty connected_node to router
-                if not d.connected_node or d.connected_node.startswith("Device-"):
-                    # Assign to router
-                    from copy import copy
-                    d_normalized = copy(d)
-                    d_normalized.connected_node = router_node_name
-                    real_devices.append(d_normalized)
-                else:
-                    real_devices.append(d)
-
-        online_count = sum(1 for d in devices if d.online)
-        print(f"Total real_devices: {len(real_devices)}, online devices: {online_count}")
-        connected_nodes_in_real = set(d.connected_node for d in real_devices if d.connected_node)
-        print(f"Connected nodes in real_devices: {connected_nodes_in_real}")
-        print(f"Node hierarchy: {node_hierarchy}")
-
-        # Build a function to count devices for a node (DIRECT connections only, no recursion)
-        def count_devices_direct(target_mac: str) -> int:
-            target_name = mac_to_node_name.get(target_mac, "")
-            count = 0
-            for d in real_devices:
-                if d.connected_node:
-                    device_node_mac = node_name_to_mac_map.get(d.connected_node, "")
-                    if device_node_mac == target_mac or d.connected_node == target_name:
-                        count += 1
-            return count
-
-        # Clear device count metrics to avoid duplicates
-        self.repeater_connected_devices.clear()
-        self.powerline_connected_devices.clear()
-        
-        # Export repeater device counts (exclude powerline nodes to avoid duplicates)
-        repeater_nodes = {n.mac: n for n in nodes if n.is_repeater and not n.is_powerline}
-        for mac, node in repeater_nodes.items():
-            # Only export metrics for active nodes
-            if node.extra.get('active', True):
-                count = count_devices_direct(mac)
-                self.repeater_connected_devices.labels(node.name, mac).set(count)
-
-        # Update per-powerline counts - grouped by MAC
-        powerline_nodes = {n.mac: n for n in nodes if n.is_powerline}
-        for mac, node in powerline_nodes.items():
-            # Only export metrics for active nodes
-            if node.extra.get('active', True):
-                count = count_devices_direct(mac)
-                self.powerline_connected_devices.labels(node.name, mac).set(count)
-
-        # Clear node hierarchy metrics to avoid duplicates
-        self.node_parent.clear()
-        
-        # Export node hierarchy (parent-child relationships)
-        for node in nodes:
-            # Only export hierarchy for active nodes or router
-            if node.is_router or node.extra.get('active', True):
-                if node.parent_node and node.parent_node in node_name_to_mac_map:
-                    parent_mac = node_name_to_mac_map[node.parent_node]
-                    self.node_parent.labels(
-                        name=node.name,
-                        mac=node.mac,
-                        parent_name=node.parent_node,
-                        parent_mac=parent_mac
-                    ).set(1)
-                elif node.is_router:
-                    # Root node (fritz.box) has no parent - use empty strings
-                    self.node_parent.labels(
-                        name=node.name,
-                        mac=node.mac,
-                        parent_name="",
-                        parent_mac=""
-                    ).set(1)
-
-        # Calculate aggregated traffic per node (sum of all connected devices)
-        node_traffic = {}  # mac -> {rx: int, tx: int}
-        for node in nodes:
-            node_traffic[node.mac] = {'rx': 0, 'tx': 0}
-
-        for device in real_devices:
-            if device.connected_node and device.connected_node in node_name_to_mac_map:
-                node_mac = node_name_to_mac_map[device.connected_node]
-                if device.rx_bytes_total:
-                    node_traffic[node_mac]['rx'] += device.rx_bytes_total
-                if device.tx_bytes_total:
-                    node_traffic[node_mac]['tx'] += device.tx_bytes_total
-
-        # Clear traffic metrics to avoid duplicates
-        self.node_rx_bytes_total.clear()
-        self.node_tx_bytes_total.clear()
         self.node_link_rx_kbps.clear()
         self.node_link_tx_kbps.clear()
-        
-        # Export node traffic metrics
-        for node in nodes:
-            # Only export traffic for active nodes or router
-            if node.is_router or node.extra.get('active', True):
-                # Priority: router > powerline > repeater
-                node_type = 'router' if node.is_router else ('powerline' if node.is_powerline else 'repeater')
-                self.node_rx_bytes_total.labels(
-                    name=node.name,
-                    mac=node.mac,
-                    type=node_type
-                ).set(node_traffic[node.mac]['rx'])
-                self.node_tx_bytes_total.labels(
-                    name=node.name,
-                    mac=node.mac,
-                    type=node_type
-                ).set(node_traffic[node.mac]['tx'])
 
-                # Export link speed metrics (current rates in kbps)
-                link_rx_kbps = node.extra.get('link_rx_kbps', 0) if node.extra else 0
-                link_tx_kbps = node.extra.get('link_tx_kbps', 0) if node.extra else 0
-                self.node_link_rx_kbps.labels(
-                    name=node.name,
-                    mac=node.mac,
-                    type=node_type
-                ).set(link_rx_kbps)
-                self.node_link_tx_kbps.labels(
-                    name=node.name,
+        node_name_to_mac = {n.name: n.mac for n in snapshot.mesh_nodes}
+        node_name_to_obj = {n.name: n for n in snapshot.mesh_nodes}
+
+        for node in snapshot.mesh_nodes:
+            node_type = "router" if node.is_router else ("powerline" if node.is_powerline else "repeater")
+            is_active = node.extra.get("active", True)
+            model = node.extra.get("model", node.name)
+            parent = node.parent_node or ""
+
+            self.node_up.labels(node.name, node.mac, node_type).set(1 if is_active else 0)
+            self.node_info.labels(
+                name=node.name,
                 mac=node.mac,
-                type=node_type
-            ).set(link_tx_kbps)
+                type=node_type,
+                model=model,
+                ip=node.ip or "",
+                parent_name=parent
+            ).set(1)
 
-    def update_log_metrics(self, log_stats: dict) -> None:
-        """Update log-related metrics."""
-        # Total logs
-        self.log_total.set(log_stats.get('total', 0))
+            rx_kbps = node.extra.get("link_rx_kbps", 0)
+            tx_kbps = node.extra.get("link_tx_kbps", 0)
+            self.node_link_rx_kbps.labels(node.name, node.mac, node_type).set(rx_kbps)
+            self.node_link_tx_kbps.labels(node.name, node.mac, node_type).set(tx_kbps)
 
-        # Logs by severity
-        for severity in ['error', 'warning', 'info']:
-            count = log_stats.get(severity, 0)
-            self.log_by_severity.labels(severity=severity).set(count)
+        # Render Devices
+        self.device_up.clear()
+        self.device_rx_bytes_total.clear()
+        self.device_tx_bytes_total.clear()
+        self.device_wlan_signal_strength.clear()
+        self.device_wlan_speed_mbps.clear()
 
-        # Logs by category
-        for category, count in log_stats.get('by_category', {}).items():
-            self.log_by_category.labels(category=category).set(count)
+        for dev in devices:
+            node_mac = node_name_to_mac.get(dev.connected_node, "")
+            connected_obj = node_name_to_obj.get(dev.connected_node)
 
-        # Logs by source
-        for source, count in log_stats.get('by_source', {}).items():
-            self.log_by_source.labels(source=source).set(count)
+            is_rep = "false"
+            is_pwl = "false"
+            if connected_obj:
+                if connected_obj.is_powerline:
+                    is_pwl = "true"
+                elif connected_obj.is_repeater and not connected_obj.is_router:
+                    is_rep = "true"
+
+            dev_args = (
+                dev.mac,
+                dev.name,
+                dev.ip or "",
+                dev.connected_node or "",
+                node_mac,
+                dev.interface_type or "",
+                is_rep,
+                is_pwl,
+            )
+
+            self.device_up.labels(*dev_args).set(1 if dev.online else 0)
+
+            if dev.rx_bytes_total is not None:
+                self.device_rx_bytes_total.labels(*dev_args).set(dev.rx_bytes_total)
+            if dev.tx_bytes_total is not None:
+                self.device_tx_bytes_total.labels(*dev_args).set(dev.tx_bytes_total)
+
+            if dev.interface_type == "802.11" and dev.extra:
+                signal = dev.extra.get("signal_strength", 0)
+                speed = dev.extra.get("speed", 0)
+                wlan_args = (dev.mac, dev.name, dev.ip or "", dev.connected_node or "", node_mac)
+                if signal or speed:
+                    self.device_wlan_signal_strength.labels(*wlan_args).set(signal)
+                    self.device_wlan_speed_mbps.labels(*wlan_args).set(speed)
 
     def render(self) -> bytes:
+        """Collect latest snapshot from CollectorService and generate Prometheus output."""
+        if self.collector_service:
+            snapshot = self.collector_service.get_snapshot()
+            state = self.collector_service.get_state()
+            self.render_snapshot(snapshot, state)
         return generate_latest(self.registry)

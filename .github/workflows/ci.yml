@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-validate:
+    name: Test & Validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Checkout fritz-avm-client dependency
+        uses: actions/checkout@v4
+        with:
+          repository: domehahn/fritz-avm-client
+          path: fritz-avm-client
+
+      - name: Install dependencies
+        run: |
+          pip install poetry
+          poetry config virtualenvs.create false
+          pip install ./fritz-avm-client
+          poetry install --with dev
+
+      - name: Lint with ruff
+        run: |
+          ruff check src/
+
+      - name: Run unit tests with coverage
+        run: |
+          PYTHONPATH=src pytest --cov=fritz_monitoring tests/
+
+      - name: Validate Docker Compose Production Config
+        run: |
+          mkdir -p secrets
+          echo "test_password" > secrets/fritz_password.txt
+          echo "test_password" > secrets/grafana_admin_password.txt
+          echo "test_password" > secrets/device_manager_admin_password.txt
+          docker compose -f compose.prod.yml config
