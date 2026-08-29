@@ -14,7 +14,7 @@ services:
     environment:
       - FRITZ_HOST=${FRITZ_HOST:-192.168.178.1}
       - FRITZ_PORT=${FRITZ_PORT:-49000}
-      - FRITZ_USERNAME=${FRITZ_MONITOR_USERNAME:-${FRITZ_USERNAME:-}}
+      - FRITZ_USERNAME=${FRITZ_MONITOR_USERNAME:-}
       - FRITZ_PASSWORD_FILE=/run/secrets/fritz_monitor_password
       - FRITZ_USE_TLS=${FRITZ_USE_TLS:-false}
       - FRITZ_TIMEOUT=${FRITZ_TIMEOUT:-5.0}
