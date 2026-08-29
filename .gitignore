@@ -68,4 +68,8 @@ logs/
 fritzbox_credentials.txt
 passwords.txt
 secrets/
-
+# Coverage & Testing
+.coverage
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/

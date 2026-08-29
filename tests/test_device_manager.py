@@ -15,6 +15,9 @@ def test_device_manager_healthz(client):
     resp = client.get("/healthz")
     assert resp.status_code == 200
     assert resp.data.decode("utf-8") == "OK"
+    assert resp.headers.get("Content-Security-Policy") == "default-src 'self'"
+    assert resp.headers.get("X-Content-Type-Options") == "nosniff"
+    assert resp.headers.get("X-Frame-Options") == "DENY"
 
 
 def test_device_manager_unauthenticated_access(client):

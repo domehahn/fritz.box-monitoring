@@ -1,10 +1,9 @@
 """Unit tests for CollectorService and MonitoringSnapshot."""
-import time
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 from fritz_avm_client import WanStats, DslStats, WlanStats, Node, Device, MeshTopology, Settings as FritzSettings
-from fritz_monitoring.collector import CollectorService, MonitoringSnapshot, CollectorState
+from fritz_monitoring.collector import CollectorService, MonitoringSnapshot
 
 
 def test_monitoring_snapshot_immutability():
@@ -25,7 +24,7 @@ def test_collector_service_collect_once():
     mock_client.wlan_client.get_wlan_traffic_stats.return_value = WlanStats(total_packets_sent=100)
     mock_client.discover_mesh.return_value = MeshTopology(
         nodes=(Node(name="Router", mac="00:11:22:33:44:55", is_router=True),),
-        devices=(Device(name="Phone", mac="AA:BB:CC:DD:EE:FF", online=True),)
+        devices=(Device(name="Phone", mac="AA:BB:CC:DD:EE:FF", is_active=True),)
     )
 
     with patch.object(collector, "get_client", return_value=mock_client):

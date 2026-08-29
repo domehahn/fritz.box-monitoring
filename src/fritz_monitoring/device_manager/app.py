@@ -3,18 +3,38 @@
 Fritz!Box Device Management Web Interface (Secured)
 Provides authenticated device viewing, topology representation, and hardened deletion operations.
 """
+from __future__ import annotations
 import os
 import re
+import json
 import secrets
+from datetime import datetime, timezone
 from functools import wraps
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session, abort
+from typing import Callable, Any
+from flask import Flask, render_template, request, jsonify, session, abort, Response
 from loguru import logger
 
 from fritz_avm_client import FritzClient, Settings as FritzSettings
 from ..config import Settings
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', secrets.token_hex(32))
+
+
+def resolve_secret_key() -> str:
+    """Resolve Flask secret key from file or environment."""
+    secret_key_file = os.getenv('DEVICE_MANAGER_SECRET_KEY_FILE')
+    if secret_key_file and os.path.exists(secret_key_file):
+        try:
+            with open(secret_key_file, 'r', encoding='utf-8') as f:
+                content = f.read().strip()
+                if content:
+                    return content
+        except Exception as exc:
+            logger.warning(f"Failed to read DEVICE_MANAGER_SECRET_KEY_FILE: {exc}")
+    return os.getenv('SECRET_KEY', secrets.token_hex(32))
+
+
+app.config['SECRET_KEY'] = resolve_secret_key()
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
@@ -22,6 +42,16 @@ settings = Settings()
 ADMIN_PASSWORD = settings.resolved_device_manager_admin_password
 
 MAC_REGEX = re.compile(r'^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$')
+
+
+@app.after_request
+def apply_security_headers(response: Response) -> Response:
+    """Attach HTTP security headers to all responses."""
+    response.headers['Content-Security-Policy'] = "default-src 'self'"
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    return response
 
 
 def get_fritz_client() -> FritzClient:
@@ -38,10 +68,10 @@ def get_fritz_client() -> FritzClient:
     return FritzClient(fritz_settings)
 
 
-def require_auth(f):
+def require_auth(f: Callable[..., Any]) -> Callable[..., Any]:
     """Decorator enforcing authentication when ADMIN_PASSWORD is set or failing fast if not set."""
     @wraps(f)
-    def decorated(*args, **kwargs):
+    def decorated(*args: Any, **kwargs: Any) -> Any:
         if not ADMIN_PASSWORD:
             logger.error("Device Manager accessed but DEVICE_MANAGER_ADMIN_PASSWORD(_FILE) is not configured")
             return abort(503, description="Device Manager disabled: Admin password not configured")
@@ -61,10 +91,10 @@ def require_auth(f):
     return decorated
 
 
-def validate_csrf(f):
+def validate_csrf(f: Callable[..., Any]) -> Callable[..., Any]:
     """Decorator validating CSRF token for state-changing POST requests."""
     @wraps(f)
-    def decorated(*args, **kwargs):
+    def decorated(*args: Any, **kwargs: Any) -> Any:
         if request.method == 'POST':
             token_in_header = request.headers.get('X-CSRF-Token')
             token_in_form = request.form.get('csrf_token')
@@ -78,24 +108,24 @@ def validate_csrf(f):
     return decorated
 
 
-def generate_csrf_token():
+def generate_csrf_token() -> str:
     if 'csrf_token' not in session:
         session['csrf_token'] = secrets.token_hex(16)
-    return session['csrf_token']
+    return str(session['csrf_token'])
 
 
 app.jinja_env.globals['csrf_token'] = generate_csrf_token
 
 
 @app.route('/healthz', methods=['GET'])
-def healthz():
+def healthz() -> tuple[str, int]:
     """Liveness endpoint for container healthchecks."""
     return 'OK', 200
 
 
 @app.route('/', methods=['GET'])
 @require_auth
-def index():
+def index() -> Any:
     """Main page displaying connected and offline devices."""
     client = get_fritz_client()
     devices = client.get_all_hosts()
@@ -113,7 +143,7 @@ def index():
 
 @app.route('/api/devices', methods=['GET'])
 @require_auth
-def api_devices():
+def api_devices() -> Any:
     """API endpoint to fetch all devices as JSON."""
     client = get_fritz_client()
     devices = client.get_all_hosts()
@@ -123,11 +153,12 @@ def api_devices():
 @app.route('/api/device/delete/<mac>', methods=['POST'])
 @require_auth
 @validate_csrf
-def api_delete_device(mac: str):
+def api_delete_device(mac: str) -> Any:
     """API endpoint to delete a single device by MAC address."""
     if not MAC_REGEX.match(mac):
         return jsonify({'success': False, 'message': 'Invalid MAC address format'}), 400
 
+    actor = request.authorization.username if request.authorization else "session_user"
     try:
         client = get_fritz_client()
         result = client.fc.call_action(
@@ -135,18 +166,34 @@ def api_delete_device(mac: str):
             'X_AVM-DE_DeleteHostEntry',
             NewMACAddress=mac
         )
-        logger.info(f"Deleted device {mac} from Fritz!Box")
+        audit_event = {
+            "event": "device_delete",
+            "actor": actor,
+            "target": mac,
+            "result": "success",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        logger.info(json.dumps(audit_event))
         return jsonify({'success': True, 'message': f'Device {mac} deleted', 'result': result})
     except Exception as e:
-        logger.warning(f"Failed to delete device {mac}: {e}")
+        audit_event = {
+            "event": "device_delete",
+            "actor": actor,
+            "target": mac,
+            "result": "failed",
+            "error": str(e),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        logger.warning(json.dumps(audit_event))
         return jsonify({'success': False, 'message': f'Deletion failed: {e}'}), 500
 
 
 @app.route('/api/devices/delete-offline', methods=['POST'])
 @require_auth
 @validate_csrf
-def api_delete_all_offline():
+def api_delete_all_offline() -> Any:
     """API endpoint to delete all offline devices."""
+    actor = request.authorization.username if request.authorization else "session_user"
     try:
         client = get_fritz_client()
         devices = client.get_all_hosts()
@@ -160,8 +207,25 @@ def api_delete_all_offline():
             try:
                 client.fc.call_action('Hosts1', 'X_AVM-DE_DeleteHostEntry', NewMACAddress=mac)
                 deleted += 1
-            except Exception:
+                audit_event = {
+                    "event": "device_delete_offline_single",
+                    "actor": actor,
+                    "target": mac,
+                    "result": "success",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+                logger.info(json.dumps(audit_event))
+            except Exception as e:
                 failed += 1
+                audit_event = {
+                    "event": "device_delete_offline_single",
+                    "actor": actor,
+                    "target": mac,
+                    "result": "failed",
+                    "error": str(e),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+                logger.warning(json.dumps(audit_event))
 
         return jsonify({
             'success': True,

@@ -94,7 +94,8 @@ class CollectorService:
             dsl = client.router_client.get_dsl_stats()
 
             # WLAN
-            wlan = client.wlan_client.get_wlan_traffic_stats()
+            wlan_list = client.wlan_client.get_wlan_stats()
+            wlan = wlan_list[0] if wlan_list else WlanStats()
 
             # Mesh Topology & Devices
             mesh_topology = client.discover_mesh()

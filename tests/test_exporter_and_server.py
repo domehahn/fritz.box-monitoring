@@ -20,7 +20,7 @@ def test_exporter_render_snapshot():
         dsl=DslStats(downstream_attenuation=12.5),
         wlan=WlanStats(total_packets_sent=50, total_packets_received=100),
         mesh_nodes=(Node(name="fritz.box", mac="00:11:22:33:44:55", is_router=True),),
-        devices=(Device(name="Laptop", mac="AA:11:22:33:44:55", online=True),),
+        devices=(Device(name="Laptop", mac="AA:11:22:33:44:55", is_active=True),),
         collection_duration_seconds=0.45
     )
     state = CollectorState(last_success=now, consecutive_failures=0)

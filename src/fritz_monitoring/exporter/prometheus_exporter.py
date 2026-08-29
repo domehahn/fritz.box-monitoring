@@ -3,8 +3,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from prometheus_client import CollectorRegistry, Gauge, Counter, generate_latest
 
-from fritz_avm_client import Node, Device
-from ..collector import CollectorService, MonitoringSnapshot
+from ..collector import CollectorService, MonitoringSnapshot, CollectorState
 
 
 class FritzPrometheusExporter:
@@ -230,7 +229,7 @@ class FritzPrometheusExporter:
             registry=self.registry,
         )
 
-    def render_snapshot(self, snapshot: Optional[MonitoringSnapshot], state: Optional[object] = None) -> None:
+    def render_snapshot(self, snapshot: Optional[MonitoringSnapshot], state: Optional[CollectorState] = None) -> None:
         """Update metric values based on snapshot and collector state."""
         now = datetime.now(timezone.utc)
 
@@ -289,7 +288,7 @@ class FritzPrometheusExporter:
         # Device Counts
         devices = snapshot.devices
         total_count = len(devices)
-        online_count = sum(1 for d in devices if d.online)
+        online_count = sum(1 for d in devices if d.is_active)
         offline_count = total_count - online_count
 
         self.total_devices.set(total_count)
@@ -334,8 +333,8 @@ class FritzPrometheusExporter:
         self.device_wlan_speed_mbps.clear()
 
         for dev in devices:
-            node_mac = node_name_to_mac.get(dev.connected_node, "")
-            connected_obj = node_name_to_obj.get(dev.connected_node)
+            node_mac = node_name_to_mac.get(dev.connected_to or "", "")
+            connected_obj = node_name_to_obj.get(dev.connected_to or "")
 
             is_rep = "false"
             is_pwl = "false"
@@ -349,24 +348,24 @@ class FritzPrometheusExporter:
                 dev.mac,
                 dev.name,
                 dev.ip or "",
-                dev.connected_node or "",
+                dev.connected_to or "",
                 node_mac,
-                dev.interface_type or "",
+                dev.connection_type or "",
                 is_rep,
                 is_pwl,
             )
 
-            self.device_up.labels(*dev_args).set(1 if dev.online else 0)
+            self.device_up.labels(*dev_args).set(1 if dev.is_active else 0)
 
-            if dev.rx_bytes_total is not None:
-                self.device_rx_bytes_total.labels(*dev_args).set(dev.rx_bytes_total)
-            if dev.tx_bytes_total is not None:
-                self.device_tx_bytes_total.labels(*dev_args).set(dev.tx_bytes_total)
+            if dev.rx_bytes is not None:
+                self.device_rx_bytes_total.labels(*dev_args).set(dev.rx_bytes)
+            if dev.tx_bytes is not None:
+                self.device_tx_bytes_total.labels(*dev_args).set(dev.tx_bytes)
 
-            if dev.interface_type == "802.11" and dev.extra:
+            if dev.connection_type == "802.11" and dev.extra:
                 signal = dev.extra.get("signal_strength", 0)
                 speed = dev.extra.get("speed", 0)
-                wlan_args = (dev.mac, dev.name, dev.ip or "", dev.connected_node or "", node_mac)
+                wlan_args = (dev.mac, dev.name, dev.ip or "", dev.connected_to or "", node_mac)
                 if signal or speed:
                     self.device_wlan_signal_strength.labels(*wlan_args).set(signal)
                     self.device_wlan_speed_mbps.labels(*wlan_args).set(speed)
