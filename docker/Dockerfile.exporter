@@ -3,10 +3,10 @@ FROM python:3.11-slim AS builder
 
 WORKDIR /build
 
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir poetry poetry-plugin-export
 
-COPY pyproject.toml ./
-COPY fritz-avm-client /fritz-avm-client
+COPY pyproject.toml poetry.lock ./
 
 RUN poetry export -f requirements.txt --output requirements.txt --without-hashes
 
@@ -22,11 +22,11 @@ RUN groupadd -g 10001 appgroup && \
     useradd -u 10001 -g appgroup -s /bin/sh appuser
 
 COPY --from=builder /build/requirements.txt /tmp/requirements.txt
-COPY --from=builder /fritz-avm-client /tmp/fritz-avm-client
 
-RUN pip install --no-cache-dir /tmp/fritz-avm-client && \
+RUN apt-get update && apt-get install -y --no-install-recommends git && \
     pip install --no-cache-dir -r /tmp/requirements.txt && \
-    rm -rf /tmp/*
+    apt-get purge -y --auto-remove git && \
+    rm -rf /var/lib/apt/lists/* /tmp/*
 
 COPY src /app/src
 
@@ -35,6 +35,6 @@ USER appuser:appgroup
 EXPOSE 8000
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
-  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"
 
 CMD ["python", "-m", "fritz_monitoring.exporter"]

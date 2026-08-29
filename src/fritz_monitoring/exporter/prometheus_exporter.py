@@ -53,6 +53,11 @@ class FritzPrometheusExporter:
         )
         self.exporter_build_info.labels(version="1.0.0").set(1)
 
+        if self.collector_service is not None:
+            self.collector_service.on_error_callback = (
+                lambda err_type: self.scrape_errors_total.labels(type=err_type).inc()
+            )
+
         # Router WAN Metrics
         self.router_bytes_received_total = Gauge(
             "fritz_router_bytes_received_total",
@@ -254,9 +259,6 @@ class FritzPrometheusExporter:
             self.scrape_success.set(success)
             self.consecutive_scrape_failures.set(c_state.consecutive_failures)
 
-            if c_state.last_error_type:
-                self.scrape_errors_total.labels(type=c_state.last_error_type).inc()
-
             if c_state.last_success:
                 ts = c_state.last_success.timestamp()
                 self.last_success_timestamp_seconds.set(ts)
@@ -272,6 +274,7 @@ class FritzPrometheusExporter:
 
         # Clear info/label metrics to prevent staleness
         self.router_external_ip.clear()
+        self.router_cpu_temperature.clear()
 
         # WAN Stats - Omit sample if value is None
         wan = snapshot.wan

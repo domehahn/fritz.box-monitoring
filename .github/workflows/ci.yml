@@ -15,25 +15,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout main repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
         with:
           python-version: "3.11"
           cache: "pip"
-
-      - name: Checkout fritz-avm-client dependency
-        uses: actions/checkout@v4
-        with:
-          repository: domehahn/fritz-avm-client
-          path: fritz-avm-client
 
       - name: Install dependencies
         run: |
           pip install poetry
           poetry config virtualenvs.create false
-          pip install ./fritz-avm-client
           poetry install --with dev
 
       - name: Lint with ruff

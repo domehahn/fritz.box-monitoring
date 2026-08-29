@@ -14,8 +14,8 @@ services:
     environment:
       - FRITZ_HOST=${FRITZ_HOST:-192.168.178.1}
       - FRITZ_PORT=${FRITZ_PORT:-49000}
-      - FRITZ_USERNAME=${FRITZ_USERNAME:-}
-      - FRITZ_PASSWORD_FILE=/run/secrets/fritz_password
+      - FRITZ_USERNAME=${FRITZ_MONITOR_USERNAME:-${FRITZ_USERNAME:-}}
+      - FRITZ_PASSWORD_FILE=/run/secrets/fritz_monitor_password
       - FRITZ_USE_TLS=${FRITZ_USE_TLS:-false}
       - FRITZ_TIMEOUT=${FRITZ_TIMEOUT:-5.0}
       - EXPORTER_HOST=0.0.0.0
@@ -24,7 +24,7 @@ services:
       - EXPORTER_READY_MAX_AGE=${EXPORTER_READY_MAX_AGE:-120}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     secrets:
-      - fritz_password
+      - fritz_monitor_password
     deploy:
       resources:
         limits:
@@ -126,7 +126,7 @@ services:
         condition: service_healthy
 
   grafana:
-    image: grafana/grafana:11.2.0
+    image: grafana/grafana:11.5.0
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
@@ -183,12 +183,12 @@ services:
     environment:
       - FRITZ_HOST=${FRITZ_HOST:-192.168.178.1}
       - FRITZ_PORT=${FRITZ_PORT:-49000}
-      - FRITZ_USERNAME=${FRITZ_USERNAME:-}
-      - FRITZ_PASSWORD_FILE=/run/secrets/fritz_password
+      - FRITZ_USERNAME=${FRITZ_ADMIN_USERNAME:-${FRITZ_USERNAME:-}}
+      - FRITZ_PASSWORD_FILE=/run/secrets/fritz_admin_password
       - DEVICE_MANAGER_ADMIN_PASSWORD_FILE=/run/secrets/device_manager_admin_password
       - DEVICE_MANAGER_SECRET_KEY_FILE=/run/secrets/device_manager_secret_key
     secrets:
-      - fritz_password
+      - fritz_admin_password
       - device_manager_admin_password
       - device_manager_secret_key
     deploy:
@@ -216,8 +216,10 @@ volumes:
   grafana_data:
 
 secrets:
-  fritz_password:
+  fritz_monitor_password:
     file: ${FRITZ_MONITOR_PASSWORD_FILE:-./secrets/fritz_password.txt}
+  fritz_admin_password:
+    file: ${FRITZ_ADMIN_PASSWORD_FILE:-./secrets/fritz_password.txt}
   grafana_admin_password:
     file: ${GRAFANA_ADMIN_PASSWORD_FILE:-./secrets/grafana_admin_password.txt}
   device_manager_admin_password:

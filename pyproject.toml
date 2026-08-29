@@ -10,7 +10,7 @@ python = ">=3.10"
 pydantic = ">=2.0.0"
 pydantic-settings = ">=2.0.3"
 prometheus-client = ">=0.17.1"
-fritz-avm-client = { path = "./fritz-avm-client", develop = true }
+fritz-avm-client = { git = "https://github.com/domehahn/fritz-avm-client.git", tag = "v0.3.0" }
 loguru = ">=0.7.2"
 flask = ">=3.0.0"
 gunicorn = ">=21.2.0"

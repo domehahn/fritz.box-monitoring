@@ -3,7 +3,7 @@ import time
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Callable
 from loguru import logger
 
 from fritz_avm_client import (
@@ -60,6 +60,7 @@ class CollectorService:
 
         self._running = False
         self._thread: Optional[threading.Thread] = None
+        self.on_error_callback: Optional[Callable[[str], None]] = None
 
     def get_client(self) -> FritzClient:
         """Get or initialize FritzClient instance."""
@@ -97,9 +98,34 @@ class CollectorService:
             wan = client.get_wan_stats_typed()
             dsl = client.router_client.get_dsl_stats()
 
-            # WLAN
+            # WLAN Multi-band Aggregation
             wlan_list = client.wlan_client.get_wlan_stats()
-            wlan = wlan_list[0] if wlan_list else WlanStats()
+            if wlan_list:
+                clients_list = [
+                    w.connected_clients
+                    for w in wlan_list
+                    if w.connected_clients is not None
+                ]
+                sent_list = [
+                    w.total_packets_sent
+                    for w in wlan_list
+                    if w.total_packets_sent is not None
+                ]
+                recv_list = [
+                    w.total_packets_received
+                    for w in wlan_list
+                    if w.total_packets_received is not None
+                ]
+                ssids = ", ".join(filter(None, [w.ssid for w in wlan_list]))
+
+                wlan = WlanStats(
+                    total_packets_sent=sum(sent_list) if sent_list else None,
+                    total_packets_received=sum(recv_list) if recv_list else None,
+                    connected_clients=sum(clients_list) if clients_list else None,
+                    ssid=ssids or None,
+                )
+            else:
+                wlan = WlanStats()
 
             # Mesh Topology & Devices
             mesh_topology = client.discover_mesh()
@@ -148,6 +174,11 @@ class CollectorService:
         with self._lock:
             self._state.consecutive_failures += 1
             self._state.last_error_type = error_type
+        if hasattr(self, "on_error_callback") and callable(self.on_error_callback):
+            try:
+                self.on_error_callback(error_type)
+            except Exception as cb_err:
+                logger.warning(f"Error in on_error_callback: {cb_err}")
         logger.warning(f"Snapshot collection failed ({error_type}): {exc}")
 
     def _run_loop(self) -> None:

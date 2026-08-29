@@ -18,7 +18,16 @@ else
     exit 1
 fi
 
-echo -n "2. Exporter Metrics Endpoint (/metrics)... "
+echo -n "2. Exporter Readyz (/readyz)... "
+STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${EXPORTER_URL}/readyz" || echo "000")
+if [ "$STATUS_CODE" = "200" ] || [ "$STATUS_CODE" = "503" ]; then
+    echo "OK (HTTP $STATUS_CODE)"
+else
+    echo "FAILED (Unexpected HTTP $STATUS_CODE)"
+    exit 1
+fi
+
+echo -n "3. Exporter Metrics Endpoint (/metrics)... "
 if curl -sf "${EXPORTER_URL}/metrics" | grep -q "fritz_exporter_build_info"; then
     echo "OK"
 else
