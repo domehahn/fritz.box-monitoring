@@ -1,18 +1,16 @@
 // Grafana Alloy Configuration for Fritz!Box Syslog Ingestion
 loki.source.syslog "fritzbox" {
   listener {
-    address                         = "0.0.0.0:1514"
-    protocol                        = "udp"
-    syslog_format                   = "rfc3164"
-    rfc3164_default_to_current_year = true
-    labels                          = {
+    address                = "0.0.0.0:1514"
+    protocol               = "udp"
+    labels                 = {
       job    = "fritzbox-syslog",
       source = "fritzbox",
     }
-    use_incoming_timestamp          = true
+    use_incoming_timestamp = true
   }
 
-  forward_to    = [loki.relabel.fritzbox.receiver]
+  forward_to = [loki.relabel.fritzbox.receiver]
 }
 
 loki.relabel "fritzbox" {

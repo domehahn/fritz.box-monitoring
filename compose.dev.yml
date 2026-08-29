@@ -42,7 +42,7 @@ services:
     command: run /etc/alloy/config.alloy
 
   grafana:
-    image: grafana/grafana:11.2.0
+    image: grafana/grafana:11.5.0
     ports:
       - "3000:3000"
     volumes:
