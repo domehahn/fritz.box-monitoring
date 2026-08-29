@@ -180,7 +180,16 @@ class FritzPrometheusExporter:
         )
 
         # Device Metrics
-        dev_labels = ["mac", "name", "ip", "node", "node_mac", "interface", "repeater", "powerline"]
+        dev_labels = [
+            "mac",
+            "name",
+            "ip",
+            "node",
+            "node_mac",
+            "interface",
+            "repeater",
+            "powerline",
+        ]
         self.device_up = Gauge(
             "fritz_device_up",
             "1 if device is online, 0 otherwise",
@@ -229,20 +238,31 @@ class FritzPrometheusExporter:
             registry=self.registry,
         )
 
-    def render_snapshot(self, snapshot: Optional[MonitoringSnapshot], state: Optional[CollectorState] = None) -> None:
-        """Update metric values based on snapshot and collector state."""
+    def render_snapshot(
+        self,
+        snapshot: Optional[MonitoringSnapshot],
+        state: Optional[CollectorState] = None,
+    ) -> None:
+        """Update metric values based on snapshot and collector state without exporting fake zeros."""
         now = datetime.now(timezone.utc)
 
         if state is not None:
             c_state = state
-            success = 1 if c_state.consecutive_failures == 0 and snapshot is not None else 0
+            success = (
+                1 if c_state.consecutive_failures == 0 and snapshot is not None else 0
+            )
             self.scrape_success.set(success)
             self.consecutive_scrape_failures.set(c_state.consecutive_failures)
+
+            if c_state.last_error_type:
+                self.scrape_errors_total.labels(type=c_state.last_error_type).inc()
 
             if c_state.last_success:
                 ts = c_state.last_success.timestamp()
                 self.last_success_timestamp_seconds.set(ts)
-                self.snapshot_age_seconds.set(max(0.0, (now - c_state.last_success).total_seconds()))
+                self.snapshot_age_seconds.set(
+                    max(0.0, (now - c_state.last_success).total_seconds())
+                )
 
         if snapshot is None:
             self.scrape_success.set(0)
@@ -250,40 +270,57 @@ class FritzPrometheusExporter:
 
         self.scrape_duration_seconds.set(snapshot.collection_duration_seconds)
 
-        # WAN Stats
+        # Clear info/label metrics to prevent staleness
+        self.router_external_ip.clear()
+
+        # WAN Stats - Omit sample if value is None
         wan = snapshot.wan
         if wan:
-            self.router_bytes_received_total.set(wan.total_bytes_received or 0)
-            self.router_bytes_sent_total.set(wan.total_bytes_sent or 0)
-            self.router_uptime_seconds.set(wan.device_uptime or 0)
-            self.router_max_byte_rate_up.set(wan.max_upstream_rate or 0)
-            self.router_max_byte_rate_down.set(wan.max_downstream_rate or 0)
-            self.router_current_bytes_received_rate.set(wan.current_download_rate or 0)
-            self.router_current_bytes_sent_rate.set(wan.current_upload_rate or 0)
-            self.router_connection_uptime_seconds.set(wan.connection_uptime or 0)
-            self.router_is_connected.set(1 if wan.is_connected else 0)
+            if wan.total_bytes_received is not None:
+                self.router_bytes_received_total.set(wan.total_bytes_received)
+            if wan.total_bytes_sent is not None:
+                self.router_bytes_sent_total.set(wan.total_bytes_sent)
+            if wan.device_uptime is not None:
+                self.router_uptime_seconds.set(wan.device_uptime)
+            if wan.max_upstream_rate is not None:
+                self.router_max_byte_rate_up.set(wan.max_upstream_rate)
+            if wan.max_downstream_rate is not None:
+                self.router_max_byte_rate_down.set(wan.max_downstream_rate)
+            if wan.current_download_rate is not None:
+                self.router_current_bytes_received_rate.set(wan.current_download_rate)
+            if wan.current_upload_rate is not None:
+                self.router_current_bytes_sent_rate.set(wan.current_upload_rate)
+            if wan.connection_uptime is not None:
+                self.router_connection_uptime_seconds.set(wan.connection_uptime)
+            if wan.is_connected is not None:
+                self.router_is_connected.set(1 if wan.is_connected else 0)
 
             if wan.external_ip:
-                self.router_external_ip.clear()
                 self.router_external_ip.labels(ip=wan.external_ip).set(1)
 
             for cpu_name, temp in wan.cpu_temperatures.items():
                 if temp is not None:
                     self.router_cpu_temperature.labels(cpu=cpu_name).set(temp)
 
-        # DSL Stats
+        # DSL Stats - Omit sample if value is None
         dsl = snapshot.dsl
         if dsl:
-            self.router_dsl_downstream_attenuation.set(dsl.downstream_attenuation or 0.0)
-            self.router_dsl_upstream_attenuation.set(dsl.upstream_attenuation or 0.0)
-            self.router_dsl_downstream_noise_margin.set(dsl.downstream_noise_margin or 0.0)
-            self.router_dsl_upstream_noise_margin.set(dsl.upstream_noise_margin or 0.0)
+            if dsl.downstream_attenuation is not None:
+                self.router_dsl_downstream_attenuation.set(dsl.downstream_attenuation)
+            if dsl.upstream_attenuation is not None:
+                self.router_dsl_upstream_attenuation.set(dsl.upstream_attenuation)
+            if dsl.downstream_noise_margin is not None:
+                self.router_dsl_downstream_noise_margin.set(dsl.downstream_noise_margin)
+            if dsl.upstream_noise_margin is not None:
+                self.router_dsl_upstream_noise_margin.set(dsl.upstream_noise_margin)
 
-        # WLAN Stats
+        # WLAN Stats - Omit sample if value is None
         wlan = snapshot.wlan
         if wlan:
-            self.wlan_packets_sent_total.set(wlan.total_packets_sent)
-            self.wlan_packets_received_total.set(wlan.total_packets_received)
+            if wlan.total_packets_sent is not None:
+                self.wlan_packets_sent_total.set(wlan.total_packets_sent)
+            if wlan.total_packets_received is not None:
+                self.wlan_packets_received_total.set(wlan.total_packets_received)
 
         # Device Counts
         devices = snapshot.devices
@@ -305,19 +342,25 @@ class FritzPrometheusExporter:
         node_name_to_obj = {n.name: n for n in snapshot.mesh_nodes}
 
         for node in snapshot.mesh_nodes:
-            node_type = "router" if node.is_router else ("powerline" if node.is_powerline else "repeater")
+            node_type = (
+                "router"
+                if node.is_router
+                else ("powerline" if node.is_powerline else "repeater")
+            )
             is_active = node.extra.get("active", True)
             model = node.extra.get("model", node.name)
             parent = node.parent_node or ""
 
-            self.node_up.labels(node.name, node.mac, node_type).set(1 if is_active else 0)
+            self.node_up.labels(node.name, node.mac, node_type).set(
+                1 if is_active else 0
+            )
             self.node_info.labels(
                 name=node.name,
                 mac=node.mac,
                 type=node_type,
                 model=model,
                 ip=node.ip or "",
-                parent_name=parent
+                parent_name=parent,
             ).set(1)
 
             rx_kbps = node.extra.get("link_rx_kbps", 0)
@@ -365,7 +408,13 @@ class FritzPrometheusExporter:
             if dev.connection_type == "802.11" and dev.extra:
                 signal = dev.extra.get("signal_strength", 0)
                 speed = dev.extra.get("speed", 0)
-                wlan_args = (dev.mac, dev.name, dev.ip or "", dev.connected_to or "", node_mac)
+                wlan_args = (
+                    dev.mac,
+                    dev.name,
+                    dev.ip or "",
+                    dev.connected_to or "",
+                    node_mac,
+                )
                 if signal or speed:
                     self.device_wlan_signal_strength.labels(*wlan_args).set(signal)
                     self.device_wlan_speed_mbps.labels(*wlan_args).set(speed)

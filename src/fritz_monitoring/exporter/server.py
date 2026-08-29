@@ -14,7 +14,9 @@ from .prometheus_exporter import FritzPrometheusExporter
 class MetricsServer:
     """HTTP web server serving Prometheus metrics and health endpoints."""
 
-    def __init__(self, settings: Settings, collector_service: Optional[CollectorService] = None) -> None:
+    def __init__(
+        self, settings: Settings, collector_service: Optional[CollectorService] = None
+    ) -> None:
         self.settings = settings
         fritz_settings = FritzSettings(
             fritz_host=settings.fritz_host,
@@ -34,13 +36,17 @@ class MetricsServer:
         else:
             self.collector_service = collector_service
 
-        self.exporter = FritzPrometheusExporter(collector_service=self.collector_service)
+        self.exporter = FritzPrometheusExporter(
+            collector_service=self.collector_service
+        )
         self.app = web.Application()
-        self.app.add_routes([
-            web.get("/metrics", self.handle_metrics),
-            web.get("/healthz", self.handle_healthz),
-            web.get("/readyz", self.handle_readyz),
-        ])
+        self.app.add_routes(
+            [
+                web.get("/metrics", self.handle_metrics),
+                web.get("/healthz", self.handle_healthz),
+                web.get("/readyz", self.handle_readyz),
+            ]
+        )
 
     async def handle_metrics(self, request: web.Request) -> web.Response:
         """Endpoint serving Prometheus metrics."""
@@ -92,9 +98,13 @@ class MetricsServer:
         self.collector_service.start()
         runner = web.AppRunner(self.app)
         await runner.setup()
-        site = web.TCPSite(runner, self.settings.exporter_host, self.settings.exporter_port)
+        site = web.TCPSite(
+            runner, self.settings.exporter_host, self.settings.exporter_port
+        )
         await site.start()
-        logger.info(f"Serving metrics on http://{self.settings.exporter_host}:{self.settings.exporter_port}/metrics")
+        logger.info(
+            f"Serving metrics on http://{self.settings.exporter_host}:{self.settings.exporter_port}/metrics"
+        )
         try:
             while True:
                 await asyncio.sleep(3600)

@@ -24,6 +24,7 @@ from fritz_avm_client import (
 @dataclass(frozen=True)
 class MonitoringSnapshot:
     """Immutable snapshot of all collected Fritz!Box monitoring metrics."""
+
     timestamp: datetime
     wan: Optional[WanStats] = None
     dsl: Optional[DslStats] = None
@@ -36,6 +37,7 @@ class MonitoringSnapshot:
 @dataclass
 class CollectorState:
     """Operational health state of the background collector."""
+
     last_attempt: Optional[datetime] = None
     last_success: Optional[datetime] = None
     consecutive_failures: int = 0
@@ -45,7 +47,9 @@ class CollectorState:
 class CollectorService:
     """Background service that periodically collects snapshots from Fritz!Box."""
 
-    def __init__(self, fritz_settings: FritzSettings, interval_seconds: float = 30.0) -> None:
+    def __init__(
+        self, fritz_settings: FritzSettings, interval_seconds: float = 30.0
+    ) -> None:
         self.fritz_settings = fritz_settings
         self.interval_seconds = interval_seconds
         self._client: Optional[FritzClient] = None
@@ -148,7 +152,9 @@ class CollectorService:
 
     def _run_loop(self) -> None:
         """Main loop executing periodic snapshot collections."""
-        logger.info(f"Starting CollectorService loop (interval: {self.interval_seconds}s)")
+        logger.info(
+            f"Starting CollectorService loop (interval: {self.interval_seconds}s)"
+        )
         while self._running:
             try:
                 self.collect_once()
@@ -168,7 +174,9 @@ class CollectorService:
         if self._running:
             return
         self._running = True
-        self._thread = threading.Thread(target=self._run_loop, name="CollectorServiceThread", daemon=True)
+        self._thread = threading.Thread(
+            target=self._run_loop, name="CollectorServiceThread", daemon=True
+        )
         self._thread.start()
 
     def stop(self) -> None:

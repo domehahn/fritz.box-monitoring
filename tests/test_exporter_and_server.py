@@ -6,7 +6,11 @@ from aiohttp.test_utils import TestClient, TestServer
 
 from fritz_avm_client import WanStats, DslStats, WlanStats, Node, Device
 from fritz_monitoring.config import Settings
-from fritz_monitoring.collector import CollectorService, MonitoringSnapshot, CollectorState
+from fritz_monitoring.collector import (
+    CollectorService,
+    MonitoringSnapshot,
+    CollectorState,
+)
 from fritz_monitoring.exporter.prometheus_exporter import FritzPrometheusExporter
 from fritz_monitoring.exporter.server import MetricsServer
 
@@ -16,12 +20,14 @@ def test_exporter_render_snapshot():
     now = datetime.now(timezone.utc)
     snapshot = MonitoringSnapshot(
         timestamp=now,
-        wan=WanStats(total_bytes_received=10000, total_bytes_sent=5000, is_connected=True),
+        wan=WanStats(
+            total_bytes_received=10000, total_bytes_sent=5000, is_connected=True
+        ),
         dsl=DslStats(downstream_attenuation=12.5),
         wlan=WlanStats(total_packets_sent=50, total_packets_received=100),
         mesh_nodes=(Node(name="fritz.box", mac="00:11:22:33:44:55", is_router=True),),
         devices=(Device(name="Laptop", mac="AA:11:22:33:44:55", is_active=True),),
-        collection_duration_seconds=0.45
+        collection_duration_seconds=0.45,
     )
     state = CollectorState(last_success=now, consecutive_failures=0)
 
@@ -43,7 +49,9 @@ async def test_metrics_server_endpoints():
         timestamp=now,
         wan=WanStats(total_bytes_received=500),
     )
-    mock_collector.get_state.return_value = CollectorState(last_success=now, consecutive_failures=0)
+    mock_collector.get_state.return_value = CollectorState(
+        last_success=now, consecutive_failures=0
+    )
 
     server_obj = MetricsServer(settings, collector_service=mock_collector)
     test_server = TestServer(server_obj.app)
@@ -68,4 +76,3 @@ async def test_metrics_server_endpoints():
         assert "fritz_exporter_build_info" in metrics_text
     finally:
         await client.close()
-

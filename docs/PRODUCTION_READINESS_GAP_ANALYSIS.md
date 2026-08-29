@@ -1,8 +1,8 @@
-# Production Readiness Gap Analysis
+# Production Readiness Gap Analysis — Remediation Plan (August 2026 Audit)
 
-## Overview
+## Executive Summary
 
-This gap analysis provides an evidence-based assessment of `fritz-avm-client` and `fritz.box-monitoring` against the 120% Production Readiness standard.
+A comprehensive audit on August 29, 2026 identified critical P0/P1 gaps in data integrity, CI/CD pipeline failures, fake-zero telemetry masking, container build mismatches, and Alloy syslog pipeline configuration.
 
 ---
 
@@ -10,12 +10,12 @@ This gap analysis provides an evidence-based assessment of `fritz-avm-client` an
 
 | Category | Finding / Defect | Priority | Remediation Action | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **Packaging & Imports** | `poetry.lock` out of sync with `pyproject.toml` | P0 | Re-synchronize `poetry.lock` using `poetry lock --no-update`. | PENDING |
-| **Linting & Typing** | Ruff unused imports in both repos (`client.py`, `router.py`, `app.py`, `prometheus_exporter.py`) | P1 | Auto-fix all ruff warnings (`ruff check --fix`) and enforce clean linting in CI. | PENDING |
-| **Type Checking** | `mypy` strict flags not fully declared in `pyproject.toml` | P1 | Enable strict `mypy` checks (`disallow_untyped_defs = true`, `check_untyped_defs = true`). | PENDING |
-| **Security & Secrets** | `device_manager` lacks Flask secret key file (`DEVICE_MANAGER_SECRET_KEY_FILE`) and security headers | P1 | Add `DEVICE_MANAGER_SECRET_KEY_FILE`, CSP/HSTS headers, and rate limiting decorator. | PENDING |
-| **Audit Logging** | Device deletion actions log raw string messages instead of structured JSON audit events | P1 | Emit structured JSON audit log entries (`{"event": "device_delete", "actor": "...", "target": "...", "result": "..."}`). | PENDING |
-| **Operations** | Missing automated production verification script `scripts/verify-production.sh` | P1 | Create executable `scripts/verify-production.sh` checking `/healthz`, `/readyz`, `/metrics`, Loki, and Prometheus. | PENDING |
-| **Developer Tooling** | Missing `Makefile` and `.pre-commit-config.yaml` | P2 | Create `Makefile` (`make all`, `make test`, `make lint`) and `.pre-commit-config.yaml`. | PENDING |
-| **Architecture Records** | Missing Architecture Decision Records (ADRs) | P2 | Create ADR-001 through ADR-006 under `docs/adr/`. | PENDING |
-| **Documentation** | Missing `docs/UPGRADE.md`, `docs/SECURITY_ARCHITECTURE.md`, `docs/GITHUB_REPOSITORY_RULES.md` | P2 | Create operational guides for upgrades, security architecture, and GitHub repository rules. | PENDING |
+| **CI/CD Pipelines** | `fritz-avm-client` and `fritz.box-monitoring` CI workflows fail on ruff/poetry dependencies | P0 | Fix all ruff warnings, decouple relative path dependencies, and ensure green CI across Python 3.10-3.13. | PENDING |
+| **Data Integrity** | `get_device_stats()` and sub-clients return fake zero `{'rx_bytes': 0, 'tx_bytes': 0}` or empty `{}` on timeout/error | P0 | Omit fake zero metrics; raise typed exceptions (`FritzTimeoutError`, `FritzConnectionError`) or return `None`. | PENDING |
+| **Collector State** | `CollectorService` marks `last_success=now` even when sub-client calls fail or return empty fallbacks | P0 | Mark `last_success` only when collection completely succeeds; increment `consecutive_failures` and record `last_error_type`. | PENDING |
+| **Exporter Telemetry** | `FritzPrometheusExporter` converts `None` to `0` (e.g. `bytes or 0`, `is_connected or 0`) | P1 | Omit metric sample series when data is `None`/unknown rather than exporting fake zero gauges. | PENDING |
+| **Error Counters** | `fritz_scrape_errors_total` metric is defined but never incremented | P1 | Increment `scrape_errors_total.labels(type=error_type).inc()` on collection and scrape failures. | PENDING |
+| **Alloy Syslog Pipeline** | Alloy lacks `syslog_format = "rfc3164"`, `rfc3164_default_to_current_year = true`, and has relabels at wrong stage | P1 | Configure `syslog_format = "rfc3164"`, `rfc3164_default_to_current_year = true`, and place relabel rules directly on `loki.source.syslog`. | PENDING |
+| **Device Manager Security** | Admin username is unverified in Basic Auth, direct `client.fc.call_action` used, missing rate limiting | P1 | Verify actor username, encapsulate admin ops in `client.admin.delete_host()`, add rate limiting and secret key fail-fast. | PENDING |
+| **Supply Chain & Compose** | `compose.prod.yml` contains `build:` directives; CI lacks Trivy container security scans and SBOM | P0/P1 | Remove `build:` from production compose; add Trivy scanner, Syft SBOM generation, and SHA-pinned GitHub Actions. | PENDING |
+| **Developer Tooling** | `Makefile` contains absolute local macOS user paths | P2 | Update `Makefile` to use environment-portable relative paths (`poetry run` / `VENV_BIN`). | PENDING |

@@ -6,7 +6,7 @@ WORKDIR /build
 RUN pip install --no-cache-dir poetry poetry-plugin-export
 
 COPY pyproject.toml ./
-COPY ../fritz-avm-client /fritz-avm-client
+COPY fritz-avm-client /fritz-avm-client
 
 RUN poetry export -f requirements.txt --output requirements.txt --without-hashes
 

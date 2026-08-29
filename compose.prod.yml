@@ -3,9 +3,6 @@ name: fritz-monitoring-prod
 services:
   fritz-exporter:
     image: ghcr.io/domehahn/fritz-box-monitoring/exporter:v1.0.0
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.exporter
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
@@ -172,9 +169,6 @@ services:
     profiles:
       - admin
     image: ghcr.io/domehahn/fritz-box-monitoring/device-manager:v1.0.0
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.device_manager
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
@@ -192,9 +186,11 @@ services:
       - FRITZ_USERNAME=${FRITZ_USERNAME:-}
       - FRITZ_PASSWORD_FILE=/run/secrets/fritz_password
       - DEVICE_MANAGER_ADMIN_PASSWORD_FILE=/run/secrets/device_manager_admin_password
+      - DEVICE_MANAGER_SECRET_KEY_FILE=/run/secrets/device_manager_secret_key
     secrets:
       - fritz_password
       - device_manager_admin_password
+      - device_manager_secret_key
     deploy:
       resources:
         limits:
@@ -226,4 +222,5 @@ secrets:
     file: ${GRAFANA_ADMIN_PASSWORD_FILE:-./secrets/grafana_admin_password.txt}
   device_manager_admin_password:
     file: ${DEVICE_MANAGER_ADMIN_PASSWORD_FILE:-./secrets/device_manager_admin_password.txt}
-
+  device_manager_secret_key:
+    file: ${DEVICE_MANAGER_SECRET_KEY_FILE:-./secrets/device_manager_secret_key.txt}

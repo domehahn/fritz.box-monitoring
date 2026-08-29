@@ -38,7 +38,12 @@ jobs:
 
       - name: Lint with ruff
         run: |
-          ruff check src/
+          ruff check src/ tests/
+          ruff format --check src/ tests/
+
+      - name: Type check with mypy
+        run: |
+          mypy src/
 
       - name: Run unit tests with coverage
         run: |
@@ -50,4 +55,5 @@ jobs:
           echo "test_password" > secrets/fritz_password.txt
           echo "test_password" > secrets/grafana_admin_password.txt
           echo "test_password" > secrets/device_manager_admin_password.txt
+          echo "test_secret_key" > secrets/device_manager_secret_key.txt
           docker compose -f compose.prod.yml config

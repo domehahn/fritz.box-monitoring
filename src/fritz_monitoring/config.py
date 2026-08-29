@@ -8,11 +8,9 @@ from pydantic import Field
 
 class Settings(BaseSettings):
     """Settings for Fritz Monitoring Exporter and Device Manager."""
+
     model_config = SettingsConfigDict(
-        env_file=".env",
-        case_sensitive=False,
-        env_prefix="",
-        extra="ignore"
+        env_file=".env", case_sensitive=False, env_prefix="", extra="ignore"
     )
 
     fritz_host: str = Field(default="192.168.178.1")
@@ -43,7 +41,9 @@ class Settings(BaseSettings):
                     with open(path, "r", encoding="utf-8") as f:
                         return f.read().strip()
                 except Exception as exc:
-                    raise RuntimeError(f"Failed to read fritz_password_file '{path}': {exc}") from exc
+                    raise RuntimeError(
+                        f"Failed to read fritz_password_file '{path}': {exc}"
+                    ) from exc
             else:
                 raise RuntimeError(f"fritz_password_file '{path}' does not exist")
         return self.fritz_password
@@ -58,9 +58,13 @@ class Settings(BaseSettings):
                     with open(path, "r", encoding="utf-8") as f:
                         return f.read().strip()
                 except Exception as exc:
-                    raise RuntimeError(f"Failed to read device_manager_admin_password_file '{path}': {exc}") from exc
+                    raise RuntimeError(
+                        f"Failed to read device_manager_admin_password_file '{path}': {exc}"
+                    ) from exc
             else:
-                raise RuntimeError(f"device_manager_admin_password_file '{path}' does not exist")
+                raise RuntimeError(
+                    f"device_manager_admin_password_file '{path}' does not exist"
+                )
         return self.device_manager_admin_password
 
     @cached_property

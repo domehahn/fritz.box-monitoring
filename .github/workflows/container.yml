@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  security-events: write
 
 jobs:
   build-and-scan:
@@ -15,7 +16,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Checkout fritz-avm-client dependency
         uses: actions/checkout@v4
@@ -41,3 +43,19 @@ jobs:
           file: docker/Dockerfile.device_manager
           load: true
           tags: device-manager:test
+
+      - name: Run Trivy Vulnerability Scanner on Exporter
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'fritz-exporter:test'
+          format: 'table'
+          exit-code: '0'
+          severity: 'HIGH,CRITICAL'
+
+      - name: Run Trivy Vulnerability Scanner on Device Manager
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'device-manager:test'
+          format: 'table'
+          exit-code: '0'
+          severity: 'HIGH,CRITICAL'
