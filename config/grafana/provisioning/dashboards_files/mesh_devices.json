@@ -284,7 +284,7 @@
         "current": {
           "selected": true,
           "text": "All",
-          "value": ""
+          "value": ".*"
         },
         "datasource": {
           "type": "prometheus",
@@ -323,15 +323,15 @@
           {
             "selected": false,
             "text": "Ethernet",
-            "value": "Ethernet"
+            "value": "Ethernet.*"
           },
           {
             "selected": false,
             "text": "Wireless (802.11)",
-            "value": "802.11"
+            "value": "802.11.*"
           }
         ],
-        "query": "All: .*, Ethernet: Ethernet, Wireless (802.11): 802.11",
+        "query": "All: .*, Ethernet: Ethernet.*, Wireless (802.11): 802.11.*",
         "type": "custom"
       }
     ]
