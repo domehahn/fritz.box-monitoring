@@ -1,4 +1,6 @@
-// Grafana Alloy Configuration for Fritz!Box Syslog Ingestion
+// Grafana Alloy Configuration for Fritz!Box Syslog & Container Ingestion
+
+// 1. Ingest Fritz!Box Syslog over UDP 1514
 loki.source.syslog "fritzbox" {
   listener {
     address                = "0.0.0.0:1514"
@@ -35,6 +37,34 @@ loki.relabel "fritzbox" {
   }
 }
 
+// 2. Ingest Docker Container Logs
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.docker.containers.targets
+  forward_to = [loki.relabel.containers.receiver]
+}
+
+loki.relabel "containers" {
+  forward_to = [loki.write.local_loki.receiver]
+
+  rule {
+    action        = "replace"
+    source_labels = ["__meta_docker_container_name"]
+    target_label  = "job"
+  }
+
+  rule {
+    action        = "replace"
+    source_labels = ["__meta_docker_container_name"]
+    target_label  = "container"
+  }
+}
+
+// 3. Push Log Streams to Loki
 loki.write "local_loki" {
   endpoint {
     url = "http://loki:3100/loki/api/v1/push"
