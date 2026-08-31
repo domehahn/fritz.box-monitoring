@@ -75,6 +75,11 @@ jobs:
                         /config/prometheus/rules/host_alerts.yml \
                         /config/prometheus/rules/http_probe_rules.yml
 
+      - name: Validate Alertmanager config
+        run: |
+          docker run --rm -v "$PWD/config/alertmanager:/c:ro" \
+            --entrypoint amtool prom/alertmanager:v0.27.0 check-config /c/alertmanager.yml
+
       - name: Validate Alloy config
         run: |
           docker run --rm -v "$PWD/config/alloy/config.alloy:/c.alloy:ro" \

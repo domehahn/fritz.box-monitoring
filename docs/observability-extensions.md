@@ -1,9 +1,10 @@
-# Observability extensions (P1–P5)
+# Observability extensions (P0–P5)
 
 Five additions layered on the FRITZ!Box NOC + smart-home exporters.
 
 | # | What | New services | Dashboards | Rules | Opt-in? |
 |---|------|--------------|-----------|-------|---------|
+| P0 | Alerting -> phone | `alertmanager`, `alertbridge` | – | `config/alertmanager/` | no (silent until `NTFY_TOPIC` set) |
 | P1 | Host & container monitoring | `node-exporter`, `cadvisor` | **Stack Host & Containers** | `host_alerts.yml` | no (always on) |
 | P2 | Bosch power + room climate | (extends `bosch-exporter`) | **Home Climate & Energy** | `climate_rules.yml`, `climate_alerts.yml` | no (needs `--profile bosch`) |
 | P3 | Weather (DWD / Bright Sky) | `weather-exporter` | *Weather* row on Home Climate | – | `--profile weather` |
@@ -101,3 +102,35 @@ Query in Grafana Explore / Network Events & Forensics:
 ```logql
 {service="fritz-exporter"} |= "fritz_event " | pattern "<_>fritz_event <ev>" | line_format "{{.ev}}" | json | event_type="fritzbox_log"
 ```
+
+---
+
+## P0 · Alerting -> ntfy
+
+Nothing above matters if the alerts fire into the void. Now:
+
+```
+Prometheus rule -> Alertmanager -> alertbridge -> ntfy -> phone
+```
+
+* **alertmanager** (`prom/alertmanager`) — routing tree by `severity`:
+  * `critical` (smoke, intrusion, WAN down, disk full, TLS expired) → immediately, one message each, repeat hourly
+  * `warning` → grouped, at most every 5 min, repeat every 4 h
+  * `info` (high humidity, cert expiring in 21 d, slow HTTP, Hue bulb off the mesh) → grouped, hourly, repeat daily
+  * a `critical` inhibits a same-name `warning`/`info`
+* **alertbridge** (`home_iot.alertbridge`) — Alertmanager has no ntfy receiver and ntfy does not parse the webhook JSON, so this ~120-line service reformats each alert into a titled ntfy push (priority 5/4/2 by severity, `✅` on resolve).
+
+### Setup
+
+1. Pick a long random topic (treat it like a password — anyone who knows it can read your alerts) and set it:
+   ```ini
+   NTFY_TOPIC=fritz-mon-<random>
+   ```
+2. Subscribe in the ntfy app (iOS / Android / web) to `https://ntfy.sh/<topic>`.
+3. `docker compose ... up -d alertmanager alertbridge` (they are in the default profile).
+4. Smoke test: `docker exec fritz-monitoring-prod-alertbridge-1 wget -qO- localhost:9127/test` → you should get a push.
+
+For a private topic use your own ntfy server: `NTFY_URL=https://ntfy.example.com` + `NTFY_TOKEN` (literal, or a `/secrets/...` path).
+
+Alertmanager UI is on `backend` only; reach it with `docker exec ... wget` or add a port mapping if you want the web view.
+
