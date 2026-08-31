@@ -204,10 +204,12 @@ def read_devices(session: Any) -> BoschSnapshot:
     try:
         isys = getattr(session, "intrusion_system", None)
         if isys is not None:
+            # boschshcpy hands these back as enums; str() is "ArmingState.FOO",
+            # so match on substrings, not equality.
             arming = str(getattr(isys, "arming_state", "")).upper()
             alarm = str(getattr(isys, "alarm_state", "")).upper()
-            snap.intrusion_armed = 0 if "DISARM" in arming else 1
-            snap.intrusion_alarm = 0 if alarm in ("ALARM_OFF", "") else 1
+            snap.intrusion_armed = 0 if (not arming or "DISARM" in arming) else 1
+            snap.intrusion_alarm = 1 if ("ALARM_ON" in alarm or "TRIGGER" in alarm) else 0
             snap.intrusion_available = (
                 1 if getattr(isys, "system_availability", True) else 0
             )

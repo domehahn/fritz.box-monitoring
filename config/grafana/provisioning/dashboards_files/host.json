@@ -684,7 +684,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\".+\"}[5m]))",
+          "expr": "docker_container_cpu_percent",
           "format": "table",
           "instant": true,
           "range": false,
@@ -696,7 +696,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (name) (container_memory_usage_bytes{name=~\".+\"})",
+          "expr": "docker_container_memory_bytes",
           "format": "table",
           "instant": true,
           "range": false,
@@ -708,11 +708,23 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "changes(container_start_time_seconds{name=~\".+\"}[1h])",
+          "expr": "docker_container_restart_count",
           "format": "table",
           "instant": true,
           "range": false,
           "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "docker_container_health",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "refId": "D"
         }
       ],
       "options": {
@@ -731,21 +743,21 @@
               "__name__": true,
               "job": true,
               "instance": true,
-              "instance_type": true,
-              "id": true,
-              "image": true
-            },
-            "renameByName": {
-              "name": "Container",
-              "Value #A": "CPU cores",
-              "Value #B": "Memory",
-              "Value #C": "Restarts 1h"
+              "instance_type": true
             },
             "indexByName": {
               "name": 0,
               "Value #A": 1,
               "Value #B": 2,
-              "Value #C": 3
+              "Value #C": 3,
+              "Value #D": 4
+            },
+            "renameByName": {
+              "name": "Container",
+              "Value #A": "CPU %",
+              "Value #B": "Memory (bytes)",
+              "Value #C": "Restarts",
+              "Value #D": "Health"
             }
           }
         }
@@ -756,7 +768,56 @@
             "filterable": true
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Health"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": {
+                        "text": "healthy",
+                        "color": "green"
+                      },
+                      "0": {
+                        "text": "UNHEALTHY",
+                        "color": "red"
+                      },
+                      "-1": {
+                        "text": "\u2013",
+                        "color": "text"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Memory (bytes)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "decbytes"
+              }
+            ]
+          }
+        ]
       }
     },
     {
@@ -780,7 +841,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\".+\"}[5m]))",
+          "expr": "docker_container_cpu_percent",
           "legendFormat": "{{name}}",
           "refId": "A"
         }
@@ -800,7 +861,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "none",
+          "unit": "percent",
           "custom": {
             "drawStyle": "line",
             "fillOpacity": 20,
@@ -834,7 +895,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum by (name) (container_memory_usage_bytes{name=~\".+\"})",
+          "expr": "docker_container_memory_bytes",
           "legendFormat": "{{name}}",
           "refId": "A"
         }

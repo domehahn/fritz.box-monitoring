@@ -22,9 +22,9 @@ groups:
       # --- Zigbee / reachability ------------------------------------------
       - alert: HueZigbeeDeviceUnreachable
         expr: hue_zigbee_connectivity_status == 0
-        for: 30m
+        for: 2h
         labels:
-          severity: warning
+          severity: info
         annotations:
           summary: "Hue device {{ $labels.name }} off the Zigbee mesh"
           description: "{{ $labels.name }} ({{ $labels.model }}) has reported Zigbee connection issues for 30m — dying bulb or a routing hole."

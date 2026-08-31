@@ -1,0 +1,45 @@
+# Alertmanager routing. All notifications go through the alertbridge
+# (home_iot.alertbridge), which pushes to ntfy. Severity-staggered:
+#   critical -> immediately, one message per alert
+#   warning  -> grouped, at most every 5 min
+#   info     -> grouped, at most hourly
+route:
+  receiver: warning
+  group_by: ['alertname', 'severity']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers: [severity="critical"]
+      receiver: critical
+      group_wait: 0s
+      group_interval: 1m
+      repeat_interval: 1h
+      continue: false
+    - matchers: [severity="info"]
+      receiver: info
+      group_wait: 2m
+      group_interval: 1h
+      repeat_interval: 24h
+      continue: false
+
+receivers:
+  - name: critical
+    webhook_configs:
+      - url: http://alertbridge:9127/alert
+        send_resolved: true
+        max_alerts: 0
+  - name: warning
+    webhook_configs:
+      - url: http://alertbridge:9127/alert
+        send_resolved: true
+  - name: info
+    webhook_configs:
+      - url: http://alertbridge:9127/alert
+        send_resolved: false
+
+inhibit_rules:
+  # a critical alert silences a warning/info with the same alertname+instance
+  - source_matchers: [severity="critical"]
+    target_matchers: [severity=~"warning|info"]
+    equal: ['alertname', 'instance']

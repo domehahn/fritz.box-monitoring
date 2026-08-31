@@ -55,28 +55,44 @@ groups:
 
   - name: container_alerts
     rules:
-      - alert: ContainerKilledOOM
-        expr: increase(container_oom_events_total[15m]) > 0
-        for: 0m
+      - alert: DockerStatsDown
+        expr: dockerstats_up == 0
+        for: 5m
         labels:
-          severity: critical
+          severity: warning
         annotations:
-          summary: "Container {{ $labels.name }} was OOM-killed"
-          description: "{{ $labels.name }} hit its memory limit in the last 15m."
+          summary: "dockerstats-exporter cannot reach the Docker socket"
+
+      - alert: ContainerUnhealthy
+        expr: docker_container_health == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container {{ $labels.name }} is unhealthy"
+          description: "Its Docker healthcheck has been failing for 5m."
+
+      - alert: ContainerDown
+        expr: docker_container_up == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container {{ $labels.name }} is not running"
 
       - alert: ContainerFrequentRestarts
-        expr: changes(container_start_time_seconds{name=~".+"}[1h]) > 3
+        expr: increase(docker_container_restart_count[1h]) > 3
         for: 5m
         labels:
           severity: warning
         annotations:
           summary: "Container {{ $labels.name }} restarting repeatedly"
-          description: "{{ $value }} restarts in the last hour."
+          description: "{{ $value | printf \"%.0f\" }} restarts in the last hour."
 
       - alert: ContainerHighMemory
         expr: >
-          container_memory_usage_bytes{name=~".+"}
-          / (container_spec_memory_limit_bytes{name=~".+"} > 0) > 0.9
+          docker_container_memory_bytes
+          / (docker_container_memory_limit_bytes > 0) > 0.9
         for: 15m
         labels:
           severity: warning

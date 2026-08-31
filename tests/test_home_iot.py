@@ -296,10 +296,17 @@ def test_weather_parse_current():
     from home_iot.weather.exporter import WeatherExporter, parse_current
 
     w = {
-        "temperature": 4.2, "relative_humidity": 88, "wind_speed_10": 11.0,
-        "wind_gust_speed_10": 34.0, "precipitation_10": 0.3, "cloud_cover": 75,
-        "pressure_msl": 1013.2, "solar_10": 0.02, "visibility": 21200,
-        "condition": "rain", "icon": "rain",
+        "temperature": 4.2,
+        "relative_humidity": 88,
+        "wind_speed_10": 11.0,
+        "wind_gust_speed_10": 34.0,
+        "precipitation_10": 0.3,
+        "cloud_cover": 75,
+        "pressure_msl": 1013.2,
+        "solar_10": 0.02,
+        "visibility": 21200,
+        "condition": "rain",
+        "icon": "rain",
     }
     r = parse_current(w)
     assert r.temperature_c == 4.2
@@ -339,9 +346,17 @@ def test_speedtest_exporter_render():
     from home_iot.speedtest.exporter import SpeedtestExporter, SpeedtestResult
 
     exp = SpeedtestExporter()
-    exp.update(SpeedtestResult(success=True, download_bps=9.4e8, upload_bps=4.1e7,
-                               latency_s=0.012, jitter_s=0.003,
-                               bytes_down=104857600, bytes_up=52428800))
+    exp.update(
+        SpeedtestResult(
+            success=True,
+            download_bps=9.4e8,
+            upload_bps=4.1e7,
+            latency_s=0.012,
+            jitter_s=0.003,
+            bytes_down=104857600,
+            bytes_up=52428800,
+        )
+    )
     body = exp.render().decode()
     assert "speedtest_up 1.0" in body
     assert "speedtest_download_bits_per_second 9.4e+08" in body
@@ -351,33 +366,61 @@ def test_speedtest_exporter_render():
 # Bosch (extended P2 fields)
 # --------------------------------------------------------------------------- #
 def test_bosch_reads_power_contact_air_intrusion():
-    svc_pm = SimpleNamespace(id="PowerMeter",
-                             state={"powerConsumption": 17.0, "energyConsumption": 390390.0})
+    svc_pm = SimpleNamespace(
+        id="PowerMeter", state={"powerConsumption": 17.0, "energyConsumption": 390390.0}
+    )
     svc_sw = SimpleNamespace(id="PowerSwitch", state={"switchState": "ON"})
     svc_sc = SimpleNamespace(id="ShutterContact", state={"value": "OPEN"})
-    svc_aq = SimpleNamespace(id="AirQualityLevel",
-                             state={"combinedRating": "MEDIUM", "purity": 670,
-                                    "temperature": 23.4, "humidity": 58.0})
+    svc_aq = SimpleNamespace(
+        id="AirQualityLevel",
+        state={
+            "combinedRating": "MEDIUM",
+            "purity": 670,
+            "temperature": 23.4,
+            "humidity": 58.0,
+        },
+    )
     svc_alarm = SimpleNamespace(id="Alarm", state={"value": "IDLE_OFF"})
-    plug = SimpleNamespace(id="p1", name="Technikraum", device_model="PLUG_COMPACT",
-                           room_id="r_tech", status="AVAILABLE", batterylevel=None,
-                           device_services=[svc_pm, svc_sw])
-    window = SimpleNamespace(id="w1", name="Küche Fenster", device_model="SWD",
-                             room_id="r_kitchen", status="AVAILABLE",
-                             batterylevel=SimpleNamespace(name="OK"),
-                             device_services=[svc_sc])
-    twin = SimpleNamespace(id="t1", name="Wohnzimmer Luft", device_model="TWINGUARD",
-                           room_id="r_living", status="AVAILABLE", batterylevel=None,
-                           device_services=[svc_aq, svc_alarm])
+    plug = SimpleNamespace(
+        id="p1",
+        name="Technikraum",
+        device_model="PLUG_COMPACT",
+        room_id="r_tech",
+        status="AVAILABLE",
+        batterylevel=None,
+        device_services=[svc_pm, svc_sw],
+    )
+    window = SimpleNamespace(
+        id="w1",
+        name="Küche Fenster",
+        device_model="SWD",
+        room_id="r_kitchen",
+        status="AVAILABLE",
+        batterylevel=SimpleNamespace(name="OK"),
+        device_services=[svc_sc],
+    )
+    twin = SimpleNamespace(
+        id="t1",
+        name="Wohnzimmer Luft",
+        device_model="TWINGUARD",
+        room_id="r_living",
+        status="AVAILABLE",
+        batterylevel=None,
+        device_services=[svc_aq, svc_alarm],
+    )
     session = SimpleNamespace(
         information=SimpleNamespace(version="10.35", updateState="NO_UPDATE_AVAILABLE"),
-        rooms=[SimpleNamespace(id="r_tech", name="Technikraum"),
-               SimpleNamespace(id="r_kitchen", name="Küche"),
-               SimpleNamespace(id="r_living", name="Wohnzimmer")],
+        rooms=[
+            SimpleNamespace(id="r_tech", name="Technikraum"),
+            SimpleNamespace(id="r_kitchen", name="Küche"),
+            SimpleNamespace(id="r_living", name="Wohnzimmer"),
+        ],
         devices=[plug, window, twin],
-        intrusion_system=SimpleNamespace(arming_state="SYSTEM_DISARMED",
-                                         alarm_state="ALARM_OFF",
-                                         system_availability=True),
+        intrusion_system=SimpleNamespace(
+            arming_state="SYSTEM_DISARMED",
+            alarm_state="ALARM_OFF",
+            system_availability=True,
+        ),
     )
     snap = read_devices(session)
     by = {d.name: d for d in snap.devices}
@@ -397,7 +440,10 @@ def test_bosch_reads_power_contact_air_intrusion():
     body = exp.render().decode()
     assert "bosch_shc_total_power_watts 17.0" in body
     assert "bosch_intrusion_armed 0.0" in body
-    assert 'bosch_device_contact_open{device="Küche Fenster",model="SWD",room="Küche"} 1.0' in body
+    assert (
+        'bosch_device_contact_open{device="Küche Fenster",model="SWD",room="Küche"} 1.0'
+        in body
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -425,11 +471,112 @@ def test_devicelog_parse_and_classify():
             return {"NewDeviceLog": raw}
 
     client = SimpleNamespace(fc=_FC())
-    assert tailer.poll(client) == []          # first poll only primes
-    assert tailer.poll(client) == []          # nothing new
+    assert tailer.poll(client) == []  # first poll only primes
+    assert tailer.poll(client) == []  # nothing new
     client.fc = _FC.__new__(_FC)
     client.fc.call_action = lambda *_: {
         "NewDeviceLog": "31.08.26 15:00:00 Neustart durchgefuehrt.\n" + raw
     }
     fresh = tailer.poll(client)
     assert len(fresh) == 1 and fresh[0]["subsystem"] == "system"
+
+
+# --------------------------------------------------------------------------- #
+# dockerstats
+# --------------------------------------------------------------------------- #
+def test_dockerstats_cpu_and_parse():
+    from home_iot.dockerstats.exporter import (
+        DockerStatsExporter,
+        cpu_percent,
+        parse_stats,
+    )
+
+    stats = {
+        "cpu_stats": {
+            "cpu_usage": {"total_usage": 2000},
+            "system_cpu_usage": 20000,
+            "online_cpus": 4,
+        },
+        "precpu_stats": {"cpu_usage": {"total_usage": 1000}, "system_cpu_usage": 10000},
+        "memory_stats": {
+            "usage": 200_000_000,
+            "limit": 512_000_000,
+            "stats": {"inactive_file": 50_000_000},
+        },
+        "networks": {"eth0": {"rx_bytes": 1234, "tx_bytes": 567}},
+    }
+    assert cpu_percent(stats) == 40.0  # (1000/10000)*4*100
+    container = {
+        "Names": ["/fritz-exporter"],
+        "State": "running",
+        "Status": "Up 3 hours (healthy)",
+    }
+    cs = parse_stats(container, stats, restart_count=2)
+    assert cs.name == "fritz-exporter"
+    assert cs.state == "running"
+    assert cs.restart_count == 2
+    assert cs.mem_bytes == 150_000_000
+    assert cs.net_rx_bytes == 1234
+    assert cs.health == 1
+
+    exp = DockerStatsExporter()
+    exp.update([cs], ok=True)
+    body = exp.render().decode()
+    assert "dockerstats_up 1.0" in body
+    assert 'docker_container_cpu_percent{name="fritz-exporter"} 40.0' in body
+
+
+def test_dockerstats_cpu_zero_on_bad_input():
+    from home_iot.dockerstats.exporter import cpu_percent
+
+    assert cpu_percent({}) == 0.0
+    assert cpu_percent({"cpu_stats": {}, "precpu_stats": {}}) == 0.0
+
+
+# --------------------------------------------------------------------------- #
+# alertbridge
+# --------------------------------------------------------------------------- #
+def test_alertbridge_format_alert():
+    from home_iot.alertbridge.app import format_alert
+
+    firing = {
+        "status": "firing",
+        "labels": {
+            "alertname": "BoschSmokeAlarm",
+            "severity": "critical",
+            "device": "Flur",
+            "room": "Flur",
+        },
+        "annotations": {
+            "summary": "SMOKE ALARM — Flur",
+            "description": "detector in alarm",
+        },
+    }
+    title, body, prio, tags = format_alert(firing)
+    assert "CRITICAL" in title and "SMOKE ALARM" in title
+    assert prio == "5"
+    assert "detector in alarm" in body
+    assert "device=Flur" in body
+
+    resolved = {
+        "status": "resolved",
+        "labels": {"alertname": "HostDown", "severity": "critical"},
+        "annotations": {"summary": "node-exporter is down"},
+    }
+    _, _, prio_r, tags_r = format_alert(resolved)
+    assert prio_r == "3" and tags_r == "white_check_mark"
+
+    info = {
+        "status": "firing",
+        "labels": {"alertname": "RoomHighHumidity", "severity": "info"},
+        "annotations": {},
+    }
+    _, _, prio_i, _ = format_alert(info)
+    assert prio_i == "2"
+
+
+def test_alertbridge_ascii_header():
+    from home_iot.alertbridge.app import _ascii
+
+    assert _ascii("🚨 CRITICAL: x") == "CRITICAL: x"
+    assert _ascii("🚨🚨🚨") == "alert"

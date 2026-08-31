@@ -459,27 +459,95 @@ services:
       resources:
         limits: { cpus: '0.2', memory: 64M }
 
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.49.1
+  # Per-container CPU/memory/network/restarts straight off the Docker Engine
+  # API socket. Replaces cAdvisor, which cannot read the overlay2 layer DB on
+  # Docker Desktop / macOS and there returns only the root cgroup.
+  dockerstats-exporter:
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.dockerstats"]
     restart: unless-stopped
-    command:
-      - '--housekeeping_interval=15s'
-      - '--docker_only=true'
-      - '--store_container_labels=false'
-    privileged: true
-    devices:
-      - /dev/kmsg
+    # Root is needed to read the Docker socket (root:root on Docker Desktop);
+    # every capability is still dropped and no-new-privileges is set, and the
+    # socket is mounted read-only. Harden further with a docker-socket-proxy if
+    # you want zero root — this exporter only issues GETs.
+    user: "0:0"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     networks:
       - backend
     volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-      - /var/lib/docker/:/var/lib/docker:ro
-      - /dev/disk/:/dev/disk:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - DOCKERSTATS_INTERVAL_SECONDS=${DOCKERSTATS_INTERVAL_SECONDS:-20}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
     deploy:
       resources:
-        limits: { cpus: '0.3', memory: 192M }
+        limits: { cpus: '0.3', memory: 128M }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9126/healthz')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # --- Alerting (P0) ------------------------------------------------
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+    volumes:
+      - ./config/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    deploy:
+      resources:
+        limits: { cpus: '0.25', memory: 96M }
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9093/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Alertmanager webhook -> ntfy push. Needs internet (ntfy.sh) unless NTFY_URL
+  # points at a LAN server.
+  alertbridge:
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.alertbridge"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - NTFY_URL=${NTFY_URL:-https://ntfy.sh}
+      - NTFY_TOPIC=${NTFY_TOPIC:-}
+      - NTFY_TOKEN=${NTFY_TOKEN:-}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    deploy:
+      resources:
+        limits: { cpus: '0.2', memory: 96M }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9127/healthz')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   # --- Weather (P3) ---------------------------------------------------
   # DWD data via Bright Sky (api.brightsky.dev) — no API key. Set WEATHER_LAT /
@@ -558,6 +626,7 @@ volumes:
   loki_data:
   grafana_data:
   home_iot_data:   # Blink cloud token cache (home_iot.blink)
+  alertmanager_data:
 
 secrets:
   fritz_monitor_password:
