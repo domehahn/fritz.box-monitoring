@@ -598,7 +598,7 @@
     {
       "id": 10,
       "type": "row",
-      "title": "Reachability \u2014 only problem devices are listed",
+      "title": "Reachability \u2014 every row here is a device that needs attention",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -646,36 +646,7 @@
             "filterable": true
           }
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "state"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "value",
-                    "options": {
-                      "0": {
-                        "text": "\u26a0",
-                        "color": "red"
-                      }
-                    }
-                  }
-                ]
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-background"
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "transformations": [
         {
@@ -689,10 +660,12 @@
               "container": true,
               "service": true,
               "service_name": true,
-              "stack": true
+              "stack": true,
+              "network": true,
+              "Value": true
             },
             "renameByName": {
-              "Value": "state"
+              "Value": "Value"
             }
           }
         }
@@ -736,36 +709,7 @@
             "filterable": true
           }
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "state"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "value",
-                    "options": {
-                      "0": {
-                        "text": "\u26a0",
-                        "color": "red"
-                      }
-                    }
-                  }
-                ]
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-background"
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "transformations": [
         {
@@ -779,10 +723,12 @@
               "container": true,
               "service": true,
               "service_name": true,
-              "stack": true
+              "stack": true,
+              "network": true,
+              "Value": true
             },
             "renameByName": {
-              "Value": "state"
+              "Value": "Value"
             }
           }
         }
@@ -826,36 +772,7 @@
             "filterable": true
           }
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "state"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "value",
-                    "options": {
-                      "0": {
-                        "text": "\u26a0",
-                        "color": "red"
-                      }
-                    }
-                  }
-                ]
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-background"
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "transformations": [
         {
@@ -869,10 +786,12 @@
               "container": true,
               "service": true,
               "service_name": true,
-              "stack": true
+              "stack": true,
+              "network": true,
+              "Value": true
             },
             "renameByName": {
-              "Value": "state"
+              "Value": "Value"
             }
           }
         }
@@ -944,7 +863,7 @@
               {
                 "id": "custom.cellOptions",
                 "value": {
-                  "type": "color-background"
+                  "type": "color-text"
                 }
               }
             ]
@@ -963,7 +882,8 @@
               "container": true,
               "service": true,
               "service_name": true,
-              "stack": true
+              "stack": true,
+              "network": true
             },
             "renameByName": {
               "Value": "status"
@@ -988,7 +908,7 @@
     {
       "id": 16,
       "type": "table",
-      "title": "Blink cameras",
+      "title": "Blink cameras \u2014 inventory",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -1006,7 +926,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "blink_camera_battery_ok",
+          "expr": "max by (camera) (blink_camera_battery_ok)",
           "format": "table",
           "instant": true,
           "range": false,
@@ -1018,7 +938,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "blink_camera_battery_millivolts",
+          "expr": "max by (camera) (blink_camera_battery_millivolts)",
           "format": "table",
           "instant": true,
           "range": false,
@@ -1030,7 +950,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "blink_camera_temperature_celsius",
+          "expr": "max by (camera) (blink_camera_temperature_celsius)",
           "format": "table",
           "instant": true,
           "range": false,
@@ -1042,7 +962,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "blink_camera_wifi_strength",
+          "expr": "max by (camera) (blink_camera_wifi_strength)",
           "format": "table",
           "instant": true,
           "range": false,
@@ -1054,7 +974,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "blink_camera_motion_enabled",
+          "expr": "max by (camera) (blink_camera_motion_enabled)",
           "format": "table",
           "instant": true,
           "range": false,
@@ -1066,7 +986,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "blink_camera_motion_detected",
+          "expr": "max by (camera) (blink_camera_motion_detected)",
           "format": "table",
           "instant": true,
           "range": false,
@@ -1096,11 +1016,11 @@
                     "type": "value",
                     "options": {
                       "0": {
-                        "text": "LOW",
-                        "color": "red"
+                        "text": "low",
+                        "color": "orange"
                       },
                       "1": {
-                        "text": "OK",
+                        "text": "ok",
                         "color": "green"
                       }
                     }
@@ -1110,7 +1030,7 @@
               {
                 "id": "custom.cellOptions",
                 "value": {
-                  "type": "color-background"
+                  "type": "color-text"
                 }
               }
             ]
@@ -1128,8 +1048,8 @@
                     "type": "value",
                     "options": {
                       "0": {
-                        "text": "disarmed",
-                        "color": "red"
+                        "text": "\u2013",
+                        "color": "text"
                       },
                       "1": {
                         "text": "armed",
@@ -1142,7 +1062,7 @@
               {
                 "id": "custom.cellOptions",
                 "value": {
-                  "type": "color-background"
+                  "type": "color-text"
                 }
               }
             ]
@@ -1174,7 +1094,7 @@
               {
                 "id": "custom.cellOptions",
                 "value": {
-                  "type": "color-background"
+                  "type": "color-text"
                 }
               }
             ]
@@ -1183,21 +1103,23 @@
       },
       "transformations": [
         {
-          "id": "merge",
-          "options": {}
+          "id": "joinByField",
+          "options": {
+            "field": "camera",
+            "mode": "outer"
+          }
         },
         {
           "id": "organize",
           "options": {
             "excludeByName": {
               "Time": true,
-              "__name__": true,
-              "job": true,
-              "instance": true,
-              "container": true,
-              "service": true,
-              "service_name": true,
-              "stack": true
+              "Time 1": true,
+              "Time 2": true,
+              "Time 3": true,
+              "Time 4": true,
+              "Time 5": true,
+              "Time 6": true
             },
             "renameByName": {
               "Value #A": "battery",
@@ -1601,7 +1523,8 @@
               "container": true,
               "service": true,
               "service_name": true,
-              "stack": true
+              "stack": true,
+              "network": true
             },
             "renameByName": {
               "Value": "Value"
