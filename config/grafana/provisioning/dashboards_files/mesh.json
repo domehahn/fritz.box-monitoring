@@ -309,12 +309,11 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "fritz_node_info",
-          "legendFormat": "",
+          "expr": "max by (name, type) (fritz_node_info)",
+          "format": "table",
           "instant": true,
           "range": false,
-          "refId": "A",
-          "format": "table"
+          "refId": "A"
         },
         {
           "datasource": {
@@ -322,12 +321,11 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "fritz:node_health:code",
-          "legendFormat": "",
+          "expr": "max by (name) (fritz:node_health:code)",
+          "format": "table",
           "instant": true,
           "range": false,
-          "refId": "B",
-          "format": "table"
+          "refId": "B"
         },
         {
           "datasource": {
@@ -335,12 +333,11 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "fritz_node_up",
-          "legendFormat": "",
+          "expr": "max by (name) (fritz_node_up)",
+          "format": "table",
           "instant": true,
           "range": false,
-          "refId": "C",
-          "format": "table"
+          "refId": "C"
         },
         {
           "datasource": {
@@ -348,12 +345,11 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "fritz:node_connection_changes:24h",
-          "legendFormat": "",
+          "expr": "max by (name) (fritz:node_connection_changes:24h)",
+          "format": "table",
           "instant": true,
           "range": false,
-          "refId": "D",
-          "format": "table"
+          "refId": "D"
         },
         {
           "datasource": {
@@ -361,12 +357,11 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "fritz_node_link_rx_kbps",
-          "legendFormat": "",
+          "expr": "max by (name) (fritz_node_link_rx_kbps)",
+          "format": "table",
           "instant": true,
           "range": false,
-          "refId": "E",
-          "format": "table"
+          "refId": "E"
         },
         {
           "datasource": {
@@ -374,12 +369,11 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "fritz_node_link_tx_kbps",
-          "legendFormat": "",
+          "expr": "max by (name) (fritz_node_link_tx_kbps)",
+          "format": "table",
           "instant": true,
           "range": false,
-          "refId": "F",
-          "format": "table"
+          "refId": "F"
         },
         {
           "datasource": {
@@ -387,12 +381,11 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "fritz_repeater_connected_devices or fritz_powerline_connected_devices",
-          "legendFormat": "",
+          "expr": "max by (name) (fritz_repeater_connected_devices or fritz_powerline_connected_devices)",
+          "format": "table",
           "instant": true,
           "range": false,
-          "refId": "G",
-          "format": "table"
+          "refId": "G"
         },
         {
           "datasource": {
@@ -400,57 +393,61 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "fritz:node_backhaul_health:ratio",
-          "legendFormat": "",
+          "expr": "max by (name) (fritz:node_backhaul_health:ratio)",
+          "format": "table",
           "instant": true,
           "range": false,
-          "refId": "H",
-          "format": "table"
+          "refId": "H"
         }
       ],
       "transformations": [
         {
-          "id": "merge",
+          "id": "labelsToFields",
           "options": {}
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "field": "name",
+            "mode": "outer"
+          }
         },
         {
           "id": "organize",
           "options": {
             "excludeByName": {
               "Time": true,
-              "__name__": true,
-              "job": true,
-              "instance": true,
-              "instance_type": true,
-              "Value #A": true,
-              "ip": true,
-              "model": true
+              "Time 1": true,
+              "Time 2": true,
+              "Time 3": true,
+              "Time 4": true,
+              "Time 5": true,
+              "Time 6": true,
+              "Time 7": true,
+              "Time 8": true,
+              "Value #A": true
             },
             "indexByName": {
               "name": 0,
               "type": 1,
-              "parent_name": 2,
-              "Value #B": 3,
-              "Value #C": 4,
-              "Value #D": 5,
+              "Value #B": 2,
+              "Value #C": 3,
+              "Value #D": 4,
+              "Value #G": 5,
               "Value #E": 6,
               "Value #F": 7,
-              "Value #G": 8,
-              "Value #H": 9,
-              "mac": 10
+              "Value #H": 8
             },
             "renameByName": {
               "name": "Node",
               "type": "Type",
-              "parent_name": "Parent",
               "Value #B": "Health",
               "Value #C": "Up",
               "Value #D": "Flaps 24h",
               "Value #E": "Backhaul RX (kbps)",
               "Value #F": "Backhaul TX (kbps)",
               "Value #G": "Clients",
-              "Value #H": "Backhaul health",
-              "mac": "MAC"
+              "Value #H": "Backhaul health"
             }
           }
         }
@@ -510,7 +507,7 @@
               {
                 "id": "custom.cellOptions",
                 "value": {
-                  "type": "color-background"
+                  "type": "color-text"
                 }
               }
             ]
@@ -653,7 +650,7 @@
     {
       "id": 9,
       "type": "table",
-      "title": "Mesh hierarchy (parent \u2192 child)",
+      "title": "Mesh hierarchy (parent → child)",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -748,10 +745,6 @@
         }
       ],
       "transformations": [
-        {
-          "id": "merge",
-          "options": {}
-        },
         {
           "id": "organize",
           "options": {
