@@ -926,7 +926,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "max by (camera) (blink_camera_battery_ok)",
+          "expr": "sum without(__name__, job, instance, instance_type) (blink_camera_battery_ok)",
           "format": "table",
           "instant": true,
           "range": false,
@@ -938,7 +938,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "max by (camera) (blink_camera_battery_millivolts)",
+          "expr": "sum without(__name__, job, instance, instance_type) (blink_camera_battery_millivolts)",
           "format": "table",
           "instant": true,
           "range": false,
@@ -950,7 +950,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "max by (camera) (blink_camera_temperature_celsius)",
+          "expr": "sum without(__name__, job, instance, instance_type) (blink_camera_temperature_celsius)",
           "format": "table",
           "instant": true,
           "range": false,
@@ -962,7 +962,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "max by (camera) (blink_camera_wifi_strength)",
+          "expr": "sum without(__name__, job, instance, instance_type) (blink_camera_wifi_strength)",
           "format": "table",
           "instant": true,
           "range": false,
@@ -974,7 +974,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "max by (camera) (blink_camera_motion_enabled)",
+          "expr": "sum without(__name__, job, instance, instance_type) (blink_camera_motion_enabled)",
           "format": "table",
           "instant": true,
           "range": false,
@@ -986,7 +986,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "max by (camera) (blink_camera_motion_detected)",
+          "expr": "sum without(__name__, job, instance, instance_type) (blink_camera_motion_detected)",
           "format": "table",
           "instant": true,
           "range": false,
@@ -1103,27 +1103,15 @@
       },
       "transformations": [
         {
-          "id": "labelsToFields",
+          "id": "merge",
           "options": {}
-        },
-        {
-          "id": "joinByField",
-          "options": {
-            "field": "camera",
-            "mode": "outer"
-          }
         },
         {
           "id": "organize",
           "options": {
             "excludeByName": {
               "Time": true,
-              "Time 1": true,
-              "Time 2": true,
-              "Time 3": true,
-              "Time 4": true,
-              "Time 5": true,
-              "Time 6": true
+              "network": true
             },
             "renameByName": {
               "Value #A": "battery",

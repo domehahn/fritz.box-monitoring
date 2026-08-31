@@ -309,10 +309,11 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "max by (name, type) (fritz_node_info)",
-          "format": "table",
+          "expr": "sum without(__name__, job, instance, instance_type, model, ip) (fritz_node_info)",
+          "legendFormat": "",
           "instant": true,
           "range": false,
+          "format": "table",
           "refId": "A"
         },
         {
@@ -321,10 +322,11 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "max by (name) (fritz:node_health:code)",
-          "format": "table",
+          "expr": "sum without(__name__, job, instance, instance_type, model, ip) (fritz:node_health:code)",
+          "legendFormat": "",
           "instant": true,
           "range": false,
+          "format": "table",
           "refId": "B"
         },
         {
@@ -333,10 +335,11 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "max by (name) (fritz_node_up)",
-          "format": "table",
+          "expr": "sum without(__name__, job, instance, instance_type, model, ip) (fritz_node_up)",
+          "legendFormat": "",
           "instant": true,
           "range": false,
+          "format": "table",
           "refId": "C"
         },
         {
@@ -345,10 +348,11 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "max by (name) (fritz:node_connection_changes:24h)",
-          "format": "table",
+          "expr": "sum without(__name__, job, instance, instance_type, model, ip) (fritz:node_connection_changes:24h)",
+          "legendFormat": "",
           "instant": true,
           "range": false,
+          "format": "table",
           "refId": "D"
         },
         {
@@ -357,10 +361,11 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "max by (name) (fritz_node_link_rx_kbps)",
-          "format": "table",
+          "expr": "sum without(__name__, job, instance, instance_type, model, ip) (fritz_node_link_rx_kbps)",
+          "legendFormat": "",
           "instant": true,
           "range": false,
+          "format": "table",
           "refId": "E"
         },
         {
@@ -369,10 +374,11 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "max by (name) (fritz_node_link_tx_kbps)",
-          "format": "table",
+          "expr": "sum without(__name__, job, instance, instance_type, model, ip) (fritz_node_link_tx_kbps)",
+          "legendFormat": "",
           "instant": true,
           "range": false,
+          "format": "table",
           "refId": "F"
         },
         {
@@ -381,10 +387,11 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "max by (name) (fritz_repeater_connected_devices or fritz_powerline_connected_devices)",
-          "format": "table",
+          "expr": "sum without(__name__, job, instance, instance_type, model, ip) (fritz_repeater_connected_devices or fritz_powerline_connected_devices)",
+          "legendFormat": "",
           "instant": true,
           "range": false,
+          "format": "table",
           "refId": "G"
         },
         {
@@ -393,39 +400,25 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "max by (name) (fritz:node_backhaul_health:ratio)",
-          "format": "table",
+          "expr": "sum without(__name__, job, instance, instance_type, model, ip) (fritz:node_backhaul_health:ratio)",
+          "legendFormat": "",
           "instant": true,
           "range": false,
+          "format": "table",
           "refId": "H"
         }
       ],
       "transformations": [
         {
-          "id": "labelsToFields",
+          "id": "merge",
           "options": {}
-        },
-        {
-          "id": "joinByField",
-          "options": {
-            "field": "name",
-            "mode": "outer"
-          }
         },
         {
           "id": "organize",
           "options": {
             "excludeByName": {
               "Time": true,
-              "Time 1": true,
-              "Time 2": true,
-              "Time 3": true,
-              "Time 4": true,
-              "Time 5": true,
-              "Time 6": true,
-              "Time 7": true,
-              "Time 8": true,
-              "Value #A": true
+              "mac": true
             },
             "indexByName": {
               "name": 0,
@@ -441,6 +434,7 @@
             "renameByName": {
               "name": "Node",
               "type": "Type",
+              "Value #A": "",
               "Value #B": "Health",
               "Value #C": "Up",
               "Value #D": "Flaps 24h",
@@ -549,6 +543,18 @@
               {
                 "id": "unit",
                 "value": "percentunit"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #A"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
               }
             ]
           }
