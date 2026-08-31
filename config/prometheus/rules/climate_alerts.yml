@@ -1,0 +1,87 @@
+groups:
+  - name: bosch_climate_alerts
+    rules:
+      - alert: BoschWindowOpenWhileHeating
+        expr: >
+          (bosch_device_contact_open == 1)
+          * on(room) group_left() (room:heating_active:bool == 1)
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Window open while heating in {{ $labels.room }}"
+          description: "{{ $labels.device }} has been open 15m while a radiator in {{ $labels.room }} is running."
+
+      - alert: RoomMouldRisk
+        expr: room:dew_point_margin:kelvin < 3
+        for: 2h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Condensation risk in {{ $labels.room }}"
+          description: "Room temp is only {{ $value | printf \"%.1f\" }} K above the dew point for 2h — ventilate / heat."
+
+      - alert: RoomHighHumidity
+        expr: room:humidity:percent > 65
+        for: 6h
+        labels:
+          severity: info
+        annotations:
+          summary: "High humidity in {{ $labels.room }} ({{ $value | printf \"%.0f\" }} %)"
+          description: "Relative humidity above 65 % for 6h."
+
+      - alert: RoomTooCold
+        expr: room:temperature:celsius < 15
+        for: 3h
+        labels:
+          severity: info
+        annotations:
+          summary: "{{ $labels.room }} is cold ({{ $value | printf \"%.1f\" }} °C)"
+          description: "Below 15 °C for 3h — frost protection / forgotten window?"
+
+      - alert: BoschAirQualityBad
+        expr: bosch_device_air_rating >= 2
+        for: 1h
+        labels:
+          severity: info
+        annotations:
+          summary: "Poor air quality at {{ $labels.device }} ({{ $labels.room }})"
+          description: "TWINGUARD combined rating has been BAD for 1h — air out the room."
+
+  - name: bosch_safety_alerts
+    rules:
+      - alert: BoschSmokeAlarm
+        expr: bosch_device_smoke_alarm == 1 or bosch_shc_smoke_alarm_count > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SMOKE ALARM — {{ $labels.device }} {{ $labels.room }}"
+          description: "A Bosch smoke detector is in alarm state."
+
+      - alert: BoschSurveillanceAlarm
+        expr: bosch_surveillance_alarm == 1
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Bosch {{ $labels.system }} alarm active"
+          description: "The {{ $labels.system }} surveillance system reports an active alarm."
+
+      - alert: BoschIntrusionAlarm
+        expr: bosch_intrusion_alarm == 1
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Intrusion alarm triggered"
+          description: "The Bosch intrusion detection system is in alarm."
+
+      - alert: BoschIntrusionSystemUnavailable
+        expr: bosch_intrusion_available == 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Intrusion detection system unreachable"
+          description: "The SHC reports the intrusion system as unavailable for 15m."

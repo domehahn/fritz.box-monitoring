@@ -1,0 +1,59 @@
+groups:
+  - name: http_probe_alerts
+    rules:
+      - alert: HTTPServiceDown
+        expr: probe_success{job="probe_http"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "HTTP probe failing: {{ $labels.svc }} ({{ $labels.instance }})"
+          description: "probe_success has been 0 for 5m."
+
+      - alert: HTTPServiceSlow
+        expr: probe_http_duration_seconds{job="probe_http"} > 3
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "Slow HTTP response: {{ $labels.svc }}"
+          description: "Total request time {{ $value | printf \"%.1f\" }}s for 10m."
+
+      - alert: TLSCertExpiringSoon
+        expr: >
+          (probe_ssl_earliest_cert_expiry{job="probe_http"} - time()) / 86400 < 21
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "TLS cert for {{ $labels.svc }} expires in < 21 days"
+          description: "{{ $labels.instance }} certificate expires in {{ $value | printf \"%.0f\" }} days."
+
+      - alert: TLSCertExpired
+        expr: probe_ssl_earliest_cert_expiry{job="probe_http"} - time() < 0
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "TLS cert for {{ $labels.svc }} has EXPIRED"
+          description: "{{ $labels.instance }}."
+
+  - name: speedtest_alerts
+    rules:
+      - alert: SpeedtestDownloadFarBelowExpected
+        expr: speedtest_download_bits_per_second < 0.5 * (speedtest_download_bits_per_second offset 1d)
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Measured download less than half of yesterday's"
+          description: "Now {{ $value | humanize }}b/s. Contract vs. reality check on the Speedtest dashboard."
+
+      - alert: SpeedtestFailing
+        expr: speedtest_up == 0
+        for: 2h
+        labels:
+          severity: info
+        annotations:
+          summary: "Speed test has not produced a result for 2h"
+          description: "The speedtest-exporter cannot reach speed.cloudflare.com."

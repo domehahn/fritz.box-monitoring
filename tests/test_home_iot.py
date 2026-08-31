@@ -287,3 +287,149 @@ def test_blink_exporter_render():
     assert "blink_up 1.0" in body
     assert "blink_camera_count 2.0" in body
     assert 'blink_sync_module_online{name="Schuppen"} 0.0' in body
+
+
+# --------------------------------------------------------------------------- #
+# Weather
+# --------------------------------------------------------------------------- #
+def test_weather_parse_current():
+    from home_iot.weather.exporter import WeatherExporter, parse_current
+
+    w = {
+        "temperature": 4.2, "relative_humidity": 88, "wind_speed_10": 11.0,
+        "wind_gust_speed_10": 34.0, "precipitation_10": 0.3, "cloud_cover": 75,
+        "pressure_msl": 1013.2, "solar_10": 0.02, "visibility": 21200,
+        "condition": "rain", "icon": "rain",
+    }
+    r = parse_current(w)
+    assert r.temperature_c == 4.2
+    assert r.humidity_pct == 88.0
+    assert r.wind_gust_kmh == 34.0
+    assert r.condition == "rain"
+
+    exp = WeatherExporter()
+    exp.update(r, configured=True, ok=True)
+    body = exp.render().decode()
+    assert "weather_up 1.0" in body
+    assert "weather_temperature_celsius 4.2" in body
+    assert 'weather_condition_info{condition="rain",icon="rain"} 1.0' in body
+
+
+def test_weather_config_params():
+    from home_iot.weather.exporter import WeatherConfig
+
+    assert not WeatherConfig("", "", "").configured
+    assert WeatherConfig("52.5", "13.4", "").params == {"lat": "52.5", "lon": "13.4"}
+    assert WeatherConfig("", "", "01766").params == {"dwd_station_id": "01766"}
+
+
+# --------------------------------------------------------------------------- #
+# Speedtest
+# --------------------------------------------------------------------------- #
+def test_speedtest_summarise():
+    from home_iot.speedtest.exporter import summarise
+
+    lo, jit = summarise([0.030, 0.032, 0.031, 0.0])
+    assert lo == 0.030
+    assert jit > 0
+    assert summarise([]) == (0.0, 0.0)
+
+
+def test_speedtest_exporter_render():
+    from home_iot.speedtest.exporter import SpeedtestExporter, SpeedtestResult
+
+    exp = SpeedtestExporter()
+    exp.update(SpeedtestResult(success=True, download_bps=9.4e8, upload_bps=4.1e7,
+                               latency_s=0.012, jitter_s=0.003,
+                               bytes_down=104857600, bytes_up=52428800))
+    body = exp.render().decode()
+    assert "speedtest_up 1.0" in body
+    assert "speedtest_download_bits_per_second 9.4e+08" in body
+
+
+# --------------------------------------------------------------------------- #
+# Bosch (extended P2 fields)
+# --------------------------------------------------------------------------- #
+def test_bosch_reads_power_contact_air_intrusion():
+    svc_pm = SimpleNamespace(id="PowerMeter",
+                             state={"powerConsumption": 17.0, "energyConsumption": 390390.0})
+    svc_sw = SimpleNamespace(id="PowerSwitch", state={"switchState": "ON"})
+    svc_sc = SimpleNamespace(id="ShutterContact", state={"value": "OPEN"})
+    svc_aq = SimpleNamespace(id="AirQualityLevel",
+                             state={"combinedRating": "MEDIUM", "purity": 670,
+                                    "temperature": 23.4, "humidity": 58.0})
+    svc_alarm = SimpleNamespace(id="Alarm", state={"value": "IDLE_OFF"})
+    plug = SimpleNamespace(id="p1", name="Technikraum", device_model="PLUG_COMPACT",
+                           room_id="r_tech", status="AVAILABLE", batterylevel=None,
+                           device_services=[svc_pm, svc_sw])
+    window = SimpleNamespace(id="w1", name="Küche Fenster", device_model="SWD",
+                             room_id="r_kitchen", status="AVAILABLE",
+                             batterylevel=SimpleNamespace(name="OK"),
+                             device_services=[svc_sc])
+    twin = SimpleNamespace(id="t1", name="Wohnzimmer Luft", device_model="TWINGUARD",
+                           room_id="r_living", status="AVAILABLE", batterylevel=None,
+                           device_services=[svc_aq, svc_alarm])
+    session = SimpleNamespace(
+        information=SimpleNamespace(version="10.35", updateState="NO_UPDATE_AVAILABLE"),
+        rooms=[SimpleNamespace(id="r_tech", name="Technikraum"),
+               SimpleNamespace(id="r_kitchen", name="Küche"),
+               SimpleNamespace(id="r_living", name="Wohnzimmer")],
+        devices=[plug, window, twin],
+        intrusion_system=SimpleNamespace(arming_state="SYSTEM_DISARMED",
+                                         alarm_state="ALARM_OFF",
+                                         system_availability=True),
+    )
+    snap = read_devices(session)
+    by = {d.name: d for d in snap.devices}
+    assert by["Technikraum"].power_w == 17.0
+    assert by["Technikraum"].energy_wh == 390390.0
+    assert by["Technikraum"].switch_on == 1
+    assert by["Technikraum"].room == "Technikraum"
+    assert by["Küche Fenster"].contact_open == 1
+    assert by["Wohnzimmer Luft"].air_purity_ppm == 670.0
+    assert by["Wohnzimmer Luft"].air_rating == 1
+    assert by["Wohnzimmer Luft"].smoke_alarm == 0
+    assert snap.intrusion_armed == 0
+    assert snap.intrusion_alarm == 0
+
+    exp = BoschExporter()
+    exp.update(snap, configured=True, ok=True)
+    body = exp.render().decode()
+    assert "bosch_shc_total_power_watts 17.0" in body
+    assert "bosch_intrusion_armed 0.0" in body
+    assert 'bosch_device_contact_open{device="Küche Fenster",model="SWD",room="Küche"} 1.0' in body
+
+
+# --------------------------------------------------------------------------- #
+# FRITZ!Box device log
+# --------------------------------------------------------------------------- #
+def test_devicelog_parse_and_classify():
+    from fritz_monitoring.devicelog import DeviceLogTailer, parse_log
+
+    raw = (
+        "31.08.26 14:03:12 Internetverbindung wurde getrennt.\n"
+        "31.08.26 14:03:40 Anmeldung des Internetzugangs war erfolgreich.\n"
+        "31.08.26 09:15:00 WLAN-Geraet angemeldet: Handy.\n"
+        "garbage line without timestamp\n"
+    )
+    evs = parse_log(raw)
+    assert len(evs) == 3
+    assert evs[0]["subsystem"] == "wan"
+    assert evs[0]["severity"] == "warning"
+    assert evs[2]["subsystem"] == "wifi"
+
+    tailer = DeviceLogTailer(min_interval_s=0)
+
+    class _FC:
+        def call_action(self, *_):
+            return {"NewDeviceLog": raw}
+
+    client = SimpleNamespace(fc=_FC())
+    assert tailer.poll(client) == []          # first poll only primes
+    assert tailer.poll(client) == []          # nothing new
+    client.fc = _FC.__new__(_FC)
+    client.fc.call_action = lambda *_: {
+        "NewDeviceLog": "31.08.26 15:00:00 Neustart durchgefuehrt.\n" + raw
+    }
+    fresh = tailer.poll(client)
+    assert len(fresh) == 1 and fresh[0]["subsystem"] == "system"

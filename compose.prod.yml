@@ -3,6 +3,9 @@ name: fritz-monitoring-prod
 services:
   fritz-exporter:
     image: ghcr.io/domehahn/fritz-box-monitoring/exporter:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.exporter
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true
@@ -434,6 +437,111 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9123/healthz')\""]
       interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # --- Host & container monitoring (P1) --------------------------------
+  # Always on. cAdvisor = per-container CPU/mem/net/restarts (works on any OS).
+  # node-exporter = the host the engine runs on; on Docker Desktop / macOS that
+  # is the Linux VM, not the Mac, but its disk/memory headroom is still what the
+  # stack actually runs in.
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    restart: unless-stopped
+    command:
+      - '--path.rootfs=/host'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    networks:
+      - backend
+    volumes:
+      - /:/host:ro,rslave
+    deploy:
+      resources:
+        limits: { cpus: '0.2', memory: 64M }
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    restart: unless-stopped
+    command:
+      - '--housekeeping_interval=15s'
+      - '--docker_only=true'
+      - '--store_container_labels=false'
+    privileged: true
+    devices:
+      - /dev/kmsg
+    networks:
+      - backend
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    deploy:
+      resources:
+        limits: { cpus: '0.3', memory: 192M }
+
+  # --- Weather (P3) ---------------------------------------------------
+  # DWD data via Bright Sky (api.brightsky.dev) — no API key. Set WEATHER_LAT /
+  # WEATHER_LON in .env.production to your location.
+  weather-exporter:
+    profiles: [smarthome, weather]
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.weather"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - WEATHER_LAT=${WEATHER_LAT:-}
+      - WEATHER_LON=${WEATHER_LON:-}
+      - WEATHER_STATION=${WEATHER_STATION:-}
+      - WEATHER_INTERVAL_SECONDS=${WEATHER_INTERVAL_SECONDS:-300}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    deploy:
+      resources:
+        limits: { cpus: '0.2', memory: 96M }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9124/healthz')\""]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+
+  # --- Speedtest (P4) ----------------------------------------------
+  # Cloudflare speed test — no external binary. Bandwidth-heavy: interval
+  # floored at 1800s. Opt-in (profile: speedtest).
+  speedtest-exporter:
+    profiles: [speedtest]
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.speedtest"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - SPEEDTEST_INTERVAL_SECONDS=${SPEEDTEST_INTERVAL_SECONDS:-3600}
+      - SPEEDTEST_MAX_MB=${SPEEDTEST_MAX_MB:-100}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    deploy:
+      resources:
+        limits: { cpus: '0.5', memory: 128M }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9125/healthz')\""]
+      interval: 60s
       timeout: 5s
       retries: 3
 

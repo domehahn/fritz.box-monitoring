@@ -1,18 +1,18 @@
 {
-  "uid": "fritz_probes",
-  "title": "Network Path Probes",
+  "uid": "home_climate",
+  "title": "Home Climate & Energy",
   "tags": [
-    "fritzbox",
-    "noc",
-    "probes",
-    "blackbox"
+    "climate",
+    "bosch",
+    "energy",
+    "weather"
   ],
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,
-  "refresh": "30s",
+  "refresh": "1m",
   "time": {
-    "from": "now-6h",
+    "from": "now-24h",
     "to": "now"
   },
   "editable": true,
@@ -27,7 +27,7 @@
     {
       "id": 1,
       "type": "row",
-      "title": "Reachability",
+      "title": "Overview",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -40,7 +40,7 @@
     {
       "id": 2,
       "type": "stat",
-      "title": "LAN infra reachable",
+      "title": "Plug power now",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -58,17 +58,15 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(probe_success{job=\"probe_icmp_infra\"}) / count(probe_success{job=\"probe_icmp_infra\"})",
-          "legendFormat": "",
+          "expr": "bosch_shc_total_power_watts or vector(0)",
           "instant": true,
           "range": false,
-          "refId": "A",
-          "format": "time_series"
+          "refId": "A"
         }
       ],
       "options": {
         "colorMode": "background",
-        "graphMode": "none",
+        "graphMode": "area",
         "justifyMode": "auto",
         "textMode": "auto",
         "reduceOptions": {
@@ -81,22 +79,14 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "percentunit",
+          "unit": "watt",
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 0.99
-              },
-              {
                 "color": "green",
-                "value": 1
+                "value": null
               }
             ]
           }
@@ -107,13 +97,13 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "Internet reachable",
+      "title": "Rooms heating",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 6,
+        "x": 4,
         "y": 1,
         "w": 6,
         "h": 4
@@ -125,17 +115,15 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(probe_success{job=\"probe_icmp_internet\"}) / count(probe_success{job=\"probe_icmp_internet\"})",
-          "legendFormat": "",
+          "expr": "count(room:heating_active:bool == 1) or vector(0)",
           "instant": true,
           "range": false,
-          "refId": "A",
-          "format": "time_series"
+          "refId": "A"
         }
       ],
       "options": {
         "colorMode": "background",
-        "graphMode": "none",
+        "graphMode": "area",
         "justifyMode": "auto",
         "textMode": "auto",
         "reduceOptions": {
@@ -148,21 +136,17 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "percentunit",
+          "unit": "none",
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "red",
+                "color": "green",
                 "value": null
               },
               {
-                "color": "orange",
-                "value": 0.5
-              },
-              {
-                "color": "green",
+                "color": "blue",
                 "value": 1
               }
             ]
@@ -174,7 +158,68 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "DNS local OK",
+      "title": "Windows open",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 1,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "count(bosch_device_contact_open == 1) or vector(0)",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Intrusion",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -192,17 +237,15 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "min(probe_success{job=\"probe_dns_local\"})",
-          "legendFormat": "",
+          "expr": "bosch_intrusion_armed",
           "instant": true,
           "range": false,
-          "refId": "A",
-          "format": "time_series"
+          "refId": "A"
         }
       ],
       "options": {
         "colorMode": "background",
-        "graphMode": "none",
+        "graphMode": "area",
         "justifyMode": "auto",
         "textMode": "auto",
         "reduceOptions": {
@@ -221,89 +264,12 @@
               "type": "value",
               "options": {
                 "0": {
-                  "text": "OFFLINE",
-                  "color": "red",
-                  "index": 0
+                  "text": "disarmed",
+                  "color": "text"
                 },
                 "1": {
-                  "text": "ONLINE",
-                  "color": "green",
-                  "index": 1
-                }
-              }
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      }
-    },
-    {
-      "id": 5,
-      "type": "stat",
-      "title": "DNS external OK",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "x": 18,
-        "y": 1,
-        "w": 6,
-        "h": 4
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "min(probe_success{job=\"probe_dns_external\"})",
-          "legendFormat": "",
-          "instant": true,
-          "range": false,
-          "refId": "A",
-          "format": "time_series"
-        }
-      ],
-      "options": {
-        "colorMode": "background",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "textMode": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "OFFLINE",
-                  "color": "red",
-                  "index": 0
-                },
-                "1": {
-                  "text": "ONLINE",
-                  "color": "green",
-                  "index": 1
+                  "text": "ARMED",
+                  "color": "green"
                 }
               }
             }
@@ -324,16 +290,16 @@
     {
       "id": 6,
       "type": "stat",
-      "title": "Gateway RTT p95",
+      "title": "Smoke alarms",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 0,
-        "y": 5,
+        "x": 16,
+        "y": 1,
         "w": 6,
-        "h": 3
+        "h": 4
       },
       "targets": [
         {
@@ -342,17 +308,15 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "fritz:probe_rtt_seconds:p95_10m{hop=\"fritzbox\"}",
-          "legendFormat": "",
+          "expr": "bosch_shc_smoke_alarm_count or vector(0)",
           "instant": true,
           "range": false,
-          "refId": "A",
-          "format": "time_series"
+          "refId": "A"
         }
       ],
       "options": {
-        "colorMode": "value",
-        "graphMode": "none",
+        "colorMode": "background",
+        "graphMode": "area",
         "justifyMode": "auto",
         "textMode": "auto",
         "reduceOptions": {
@@ -365,7 +329,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "s",
+          "unit": "none",
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -375,12 +339,8 @@
                 "value": null
               },
               {
-                "color": "orange",
-                "value": 0.01
-              },
-              {
                 "color": "red",
-                "value": 0.025
+                "value": 1
               }
             ]
           }
@@ -391,16 +351,16 @@
     {
       "id": 7,
       "type": "stat",
-      "title": "WAN RTT p95 (best anchor)",
+      "title": "Outside temp",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
       "gridPos": {
-        "x": 6,
-        "y": 5,
+        "x": 20,
+        "y": 1,
         "w": 6,
-        "h": 3
+        "h": 4
       },
       "targets": [
         {
@@ -409,17 +369,15 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "min(fritz:probe_rtt_seconds:p95_10m{probe_kind=\"internet\"})",
-          "legendFormat": "",
+          "expr": "weather_temperature_celsius",
           "instant": true,
           "range": false,
-          "refId": "A",
-          "format": "time_series"
+          "refId": "A"
         }
       ],
       "options": {
-        "colorMode": "value",
-        "graphMode": "none",
+        "colorMode": "background",
+        "graphMode": "area",
         "justifyMode": "auto",
         "textMode": "auto",
         "reduceOptions": {
@@ -432,22 +390,22 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "s",
+          "unit": "celsius",
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "blue",
                 "value": null
               },
               {
-                "color": "orange",
-                "value": 0.05
+                "color": "green",
+                "value": 5
               },
               {
-                "color": "red",
-                "value": 0.1
+                "color": "orange",
+                "value": 25
               }
             ]
           }
@@ -457,162 +415,28 @@
     },
     {
       "id": 8,
-      "type": "stat",
-      "title": "Worst ICMP loss (5m)",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 5,
-        "w": 6,
-        "h": 3
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "max(fritz:probe_loss_ratio:5m{job=~\"probe_icmp_.+\"})",
-          "legendFormat": "",
-          "instant": true,
-          "range": false,
-          "refId": "A",
-          "format": "time_series"
-        }
-      ],
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "textMode": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 0.01
-              },
-              {
-                "color": "red",
-                "value": 0.03
-              }
-            ]
-          }
-        },
-        "overrides": []
-      }
-    },
-    {
-      "id": 9,
-      "type": "stat",
-      "title": "DNS lookup p95",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "x": 18,
-        "y": 5,
-        "w": 6,
-        "h": 3
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "max(fritz:dns_lookup_seconds:p95_10m)",
-          "legendFormat": "",
-          "instant": true,
-          "range": false,
-          "refId": "A",
-          "format": "time_series"
-        }
-      ],
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "textMode": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 0.1
-              },
-              {
-                "color": "red",
-                "value": 0.2
-              }
-            ]
-          }
-        },
-        "overrides": []
-      }
-    },
-    {
-      "id": 10,
       "type": "row",
-      "title": "Latency",
+      "title": "Rooms \u2014 temperature, humidity, dew-point margin",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 8,
+        "y": 5,
         "w": 24,
         "h": 1
       },
       "panels": []
     },
     {
-      "id": 11,
+      "id": 9,
       "type": "timeseries",
-      "title": "LAN / infra RTT",
+      "title": "Room temperature",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
       "gridPos": {
         "x": 0,
-        "y": 9,
+        "y": 6,
         "w": 12,
         "h": 8
       },
@@ -623,12 +447,19 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "probe_icmp_duration_seconds{phase=\"rtt\", probe_kind=\"infra\"}",
-          "legendFormat": "{{hop}} ({{instance}})",
-          "instant": false,
-          "range": true,
-          "refId": "A",
-          "format": "time_series"
+          "expr": "room:temperature:celsius",
+          "legendFormat": "{{room}}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "weather_temperature_celsius",
+          "legendFormat": "outside",
+          "refId": "B"
         }
       ],
       "options": {
@@ -636,34 +467,146 @@
           "displayMode": "table",
           "placement": "bottom",
           "calcs": [
-            "last",
+            "lastNotNull",
             "max"
           ]
         },
         "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
+          "mode": "multi"
         }
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "s",
+          "unit": "celsius",
           "custom": {
             "drawStyle": "line",
-            "fillOpacity": 10,
-            "lineInterpolation": "smooth",
+            "fillOpacity": 8,
             "showPoints": "never",
-            "spanNulls": true
+            "stacking": {
+              "mode": "none"
+            }
           },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
+          "noValue": "No Bosch temperature sensors."
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Room humidity",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 6,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "room:humidity:percent",
+          "legendFormat": "{{room}}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "weather_humidity_percent",
+          "legendFormat": "outside",
+          "refId": "B"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "noValue": "No Bosch humidity sensors."
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Dew-point margin (K) \u2014 < 3 = mould risk",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 14,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "room:dew_point_margin:kelvin",
+          "legendFormat": "{{room}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "noValue": "Needs both temp + humidity per room."
         },
         "overrides": []
       }
@@ -671,14 +614,14 @@
     {
       "id": 12,
       "type": "timeseries",
-      "title": "WAN / internet RTT",
+      "title": "Radiator valve position",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
       "gridPos": {
         "x": 12,
-        "y": 9,
+        "y": 14,
         "w": 12,
         "h": 8
       },
@@ -689,12 +632,9 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "probe_icmp_duration_seconds{phase=\"rtt\", probe_kind=\"internet\"}",
-          "legendFormat": "{{hop}} ({{instance}})",
-          "instant": false,
-          "range": true,
-          "refId": "A",
-          "format": "time_series"
+          "expr": "bosch_device_valve_percent",
+          "legendFormat": "{{room}} {{device}}",
+          "refId": "A"
         }
       ],
       "options": {
@@ -702,216 +642,42 @@
           "displayMode": "table",
           "placement": "bottom",
           "calcs": [
-            "last",
+            "lastNotNull",
             "max"
           ]
         },
         "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
+          "mode": "multi"
         }
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "s",
+          "unit": "percent",
           "custom": {
             "drawStyle": "line",
-            "fillOpacity": 10,
-            "lineInterpolation": "smooth",
+            "fillOpacity": 8,
             "showPoints": "never",
-            "spanNulls": true
+            "stacking": {
+              "mode": "none"
+            }
           },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
+          "noValue": "No radiator thermostats."
         },
         "overrides": []
       }
     },
     {
       "id": 13,
-      "type": "row",
-      "title": "Packet loss & DNS",
-      "collapsed": false,
-      "gridPos": {
-        "x": 0,
-        "y": 17,
-        "w": 24,
-        "h": 1
-      },
-      "panels": []
-    },
-    {
-      "id": 14,
-      "type": "timeseries",
-      "title": "Packet loss (fraction of failed probes, 5m)",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 18,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "fritz:probe_loss_ratio:5m{job=~\"probe_icmp_.+\"}",
-          "legendFormat": "{{hop}} ({{instance}})",
-          "instant": false,
-          "range": true,
-          "refId": "A",
-          "format": "time_series"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "last",
-            "max"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "lineInterpolation": "smooth",
-            "showPoints": "never",
-            "spanNulls": true
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 0.01
-              },
-              {
-                "color": "red",
-                "value": 0.03
-              }
-            ]
-          }
-        },
-        "overrides": []
-      }
-    },
-    {
-      "id": 15,
-      "type": "timeseries",
-      "title": "DNS lookup time - local vs external",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "x": 12,
-        "y": 18,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "probe_dns_lookup_time_seconds{job=\"probe_dns_local\"}",
-          "legendFormat": "local {{resolver}}",
-          "instant": false,
-          "range": true,
-          "refId": "A",
-          "format": "time_series"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "probe_dns_lookup_time_seconds{job=\"probe_dns_external\"}",
-          "legendFormat": "external {{resolver}}",
-          "instant": false,
-          "range": true,
-          "refId": "B",
-          "format": "time_series"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "last",
-            "max"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "lineInterpolation": "smooth",
-            "showPoints": "never",
-            "spanNulls": true
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      }
-    },
-    {
-      "id": 16,
       "type": "table",
-      "title": "Path summary",
+      "title": "Windows / doors open now",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
       "gridPos": {
         "x": 0,
-        "y": 26,
-        "w": 24,
+        "y": 22,
+        "w": 12,
         "h": 8
       },
       "targets": [
@@ -921,64 +687,36 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "fritz:probe_rtt_seconds:p95_10m",
-          "legendFormat": "",
+          "expr": "bosch_device_contact_open == 1",
+          "format": "table",
           "instant": true,
           "range": false,
-          "refId": "A",
-          "format": "table"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "fritz:probe_loss_ratio:5m",
-          "legendFormat": "",
-          "instant": true,
-          "range": false,
-          "refId": "B",
-          "format": "table"
+          "refId": "A"
         }
       ],
+      "options": {
+        "showHeader": true
+      },
       "transformations": [
-        {
-          "id": "joinByField",
-          "options": {
-            "field": "instance",
-            "mode": "outer"
-          }
-        },
         {
           "id": "organize",
           "options": {
             "excludeByName": {
-              "Time 1": true,
-              "Time 2": true,
-              "__name__ 1": true,
-              "__name__ 2": true,
-              "job 1": true,
-              "job 2": true
+              "Time": true,
+              "__name__": true,
+              "job": true,
+              "instance": true,
+              "instance_type": true,
+              "id": true,
+              "image": true
             },
             "renameByName": {
-              "Value #A": "RTT p95 (s)",
-              "Value #B": "Loss 5m",
-              "hop 1": "hop",
-              "probe_kind 1": "kind"
+              "device": "Contact",
+              "room": "Room"
             }
           }
         }
       ],
-      "options": {
-        "showHeader": true,
-        "sortBy": [
-          {
-            "displayName": "Value",
-            "desc": true
-          }
-        ]
-      },
       "fieldConfig": {
         "defaults": {
           "custom": {
@@ -989,24 +727,28 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "RTT p95 (s)"
+              "options": "Value"
             },
             "properties": [
               {
-                "id": "unit",
-                "value": "s"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Loss 5m"
-            },
-            "properties": [
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "1": {
+                        "text": "OPEN",
+                        "color": "orange"
+                      }
+                    }
+                  }
+                ]
+              },
               {
-                "id": "unit",
-                "value": "percentunit"
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
               }
             ]
           }
@@ -1014,103 +756,16 @@
       }
     },
     {
-      "id": 17,
-      "type": "row",
-      "title": "Jitter & LAN reference",
-      "collapsed": false,
-      "gridPos": {
-        "x": 0,
-        "y": 34,
-        "w": 24,
-        "h": 1
-      },
-      "panels": []
-    },
-    {
-      "id": 18,
+      "id": 14,
       "type": "timeseries",
-      "title": "RTT jitter (stddev over 10m)",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 35,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "fritz:probe_jitter_seconds:10m",
-          "legendFormat": "{{hop}}{{resolver}} ({{instance}})",
-          "instant": false,
-          "range": true,
-          "refId": "A",
-          "format": "time_series"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "last",
-            "max"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s",
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "lineInterpolation": "smooth",
-            "showPoints": "never",
-            "spanNulls": true
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 0.005
-              },
-              {
-                "color": "red",
-                "value": 0.01
-              }
-            ]
-          }
-        },
-        "overrides": []
-      }
-    },
-    {
-      "id": 19,
-      "type": "timeseries",
-      "title": "iperf3 LAN reference throughput (opt-in: compose --profile iperf)",
+      "title": "Room setpoint vs actual",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
       "gridPos": {
         "x": 12,
-        "y": 35,
+        "y": 22,
         "w": 12,
         "h": 8
       },
@@ -1121,12 +776,9 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "iperf_sent_bits_per_second or vector(0)",
-          "legendFormat": "upload",
-          "instant": false,
-          "range": true,
-          "refId": "A",
-          "format": "time_series"
+          "expr": "bosch_device_setpoint_celsius",
+          "legendFormat": "set {{room}}",
+          "refId": "A"
         },
         {
           "datasource": {
@@ -1134,12 +786,9 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "iperf_received_bits_per_second or vector(0)",
-          "legendFormat": "download",
-          "instant": false,
-          "range": true,
-          "refId": "B",
-          "format": "time_series"
+          "expr": "room:temperature:celsius",
+          "legendFormat": "is {{room}}",
+          "refId": "B"
         }
       ],
       "options": {
@@ -1147,124 +796,230 @@
           "displayMode": "table",
           "placement": "bottom",
           "calcs": [
-            "last",
+            "lastNotNull",
             "max"
           ]
         },
         "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
+          "mode": "multi"
         }
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "bps",
+          "unit": "celsius",
           "custom": {
             "drawStyle": "line",
-            "fillOpacity": 10,
-            "lineInterpolation": "smooth",
+            "fillOpacity": 8,
             "showPoints": "never",
-            "spanNulls": true
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
+            "stacking": {
+              "mode": "none"
+            }
           }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 15,
+      "type": "row",
+      "title": "Energy \u2014 Bosch plugs",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "Plug power",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 31,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "bosch_device_power_watts",
+          "legendFormat": "{{device}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "watt",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "noValue": "No metering plugs."
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 17,
+      "type": "timeseries",
+      "title": "Plug energy (kWh, cumulative)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 31,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "bosch_device_energy_watt_hours_total / 1000",
+          "legendFormat": "{{device}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "kwatth",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 18,
+      "type": "row",
+      "title": "Air quality \u2014 TWINGUARD",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 39,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 19,
+      "type": "timeseries",
+      "title": "Air purity (VOC ppm)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 40,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "bosch_device_air_purity_ppm",
+          "legendFormat": "{{device}}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "noValue": "No TWINGUARD devices."
         },
         "overrides": []
       }
     },
     {
       "id": 20,
-      "type": "row",
-      "title": "Internet capacity (speedtest \u2014 opt-in)",
-      "collapsed": false,
-      "gridPos": {
-        "x": 0,
-        "y": 43,
-        "w": 24,
-        "h": 1
-      },
-      "panels": []
-    },
-    {
-      "id": 21,
       "type": "timeseries",
-      "title": "Achievable throughput",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 44,
-        "w": 12,
-        "h": 8
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "speedtest_download_bits_per_second",
-          "legendFormat": "download",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "speedtest_upload_bits_per_second",
-          "legendFormat": "upload",
-          "refId": "B"
-        }
-      ],
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull",
-            "max"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi"
-        }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bps",
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "showPoints": "auto"
-          },
-          "noValue": "Enable the 'speedtest' compose profile."
-        },
-        "overrides": []
-      }
-    },
-    {
-      "id": 22,
-      "type": "timeseries",
-      "title": "Speedtest latency / jitter",
+      "title": "Air rating (0 good / 1 medium / 2 bad)",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
       },
       "gridPos": {
         "x": 12,
-        "y": 44,
+        "y": 40,
         "w": 12,
         "h": 8
       },
@@ -1275,24 +1030,14 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "speedtest_latency_seconds",
-          "legendFormat": "latency",
+          "expr": "bosch_device_air_rating",
+          "legendFormat": "{{device}}",
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "speedtest_jitter_seconds",
-          "legendFormat": "jitter",
-          "refId": "B"
         }
       ],
       "options": {
         "legend": {
-          "displayMode": "list",
+          "displayMode": "table",
           "placement": "bottom",
           "calcs": [
             "lastNotNull",
@@ -1305,13 +1050,276 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "s",
+          "unit": "none",
           "custom": {
             "drawStyle": "line",
-            "fillOpacity": 10,
-            "showPoints": "auto"
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
           },
-          "noValue": "Enable the 'speedtest' compose profile."
+          "noValue": "No TWINGUARD devices."
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 21,
+      "type": "row",
+      "title": "Weather (DWD via Bright Sky)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 48,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 22,
+      "type": "timeseries",
+      "title": "Outside temperature & dew comparison",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 49,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "weather_temperature_celsius",
+          "legendFormat": "temp",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "min(room:dew_point:celsius)",
+          "legendFormat": "coldest room dew point",
+          "refId": "B"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          },
+          "noValue": "Set WEATHER_LAT / WEATHER_LON."
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 23,
+      "type": "timeseries",
+      "title": "Wind (km/h)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 49,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "weather_wind_speed_kmh",
+          "legendFormat": "mean",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "weather_wind_gust_kmh",
+          "legendFormat": "gust",
+          "refId": "B"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 24,
+      "type": "timeseries",
+      "title": "Precipitation (mm / 10 min)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 57,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "weather_precipitation_mm",
+          "legendFormat": "precip",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 25,
+      "type": "timeseries",
+      "title": "Solar radiation (kWh/m\u00b2 per 10 min) & cloud cover",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 57,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "weather_solar_kwh_m2",
+          "legendFormat": "solar",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "weather_cloud_cover_percent / 100",
+          "legendFormat": "cloud frac",
+          "refId": "B"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none"
+            }
+          }
         },
         "overrides": []
       }
