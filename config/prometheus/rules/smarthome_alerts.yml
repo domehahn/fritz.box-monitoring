@@ -1,0 +1,104 @@
+groups:
+  # Smart-home fleet alerts. Every rule is guarded by `<vendor>_up == 1` (or the
+  # per-exporter configured flag) so a disabled compose profile is silent — a
+  # DOWN scrape target for an exporter you have not enabled is not a page.
+  - name: smarthome_exporter_alerts
+    rules:
+      - alert: SmartHomeExporterScrapeFailing
+        expr: >
+          (hue_configured == 1 and hue_up == 0)
+          or (bosch_shc_configured == 1 and bosch_shc_up == 0)
+          or (blink_configured == 1 and blink_up == 0)
+          or (fritzdect_configured == 1 and fritzdect_up == 0)
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "A smart-home exporter is configured but cannot reach its hub"
+          description: "{{ $labels.job }} has had up=0 for 15m while its configured flag is 1."
+
+  - name: smarthome_device_alerts
+    rules:
+      # --- Zigbee / reachability ------------------------------------------
+      - alert: HueZigbeeDeviceUnreachable
+        expr: hue_zigbee_connectivity_status == 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Hue device {{ $labels.name }} off the Zigbee mesh"
+          description: "{{ $labels.name }} ({{ $labels.model }}) has reported Zigbee connection issues for 30m — dying bulb or a routing hole."
+
+      - alert: BoschDeviceUnavailable
+        expr: bosch_device_available == 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Bosch device {{ $labels.device }} unavailable"
+          description: "{{ $labels.device }} ({{ $labels.model }}) in {{ $labels.room }} has been unreachable for 30m."
+
+      - alert: FritzDectDeviceAbsent
+        expr: fritzdect_device_present == 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "FRITZ!DECT device {{ $labels.name }} absent"
+          description: "{{ $labels.name }} ({{ $labels.product }}) has not been present for 30m."
+
+      - alert: BlinkSyncModuleOffline
+        expr: blink_sync_module_online == 0
+        for: 20m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Blink sync module {{ $labels.name }} offline"
+          description: "Sync module {{ $labels.name }} has been offline for 20m — all its cameras are blind."
+
+      # --- Batteries -----------------------------------------------------
+      - alert: HueBatteryLow
+        expr: hue_device_battery_percent < 15 and hue_device_battery_ok == 0
+        for: 2h
+        labels:
+          severity: info
+        annotations:
+          summary: "Hue accessory {{ $labels.name }} battery low"
+          description: "{{ $labels.name }} battery at {{ $value }}%."
+
+      - alert: BoschBatteryLow
+        expr: bosch_device_battery_ok == 0
+        for: 2h
+        labels:
+          severity: info
+        annotations:
+          summary: "Bosch device {{ $labels.device }} battery low"
+          description: "{{ $labels.device }} in {{ $labels.room }} reports a low/critical battery."
+
+      - alert: BlinkCameraBatteryLow
+        expr: blink_camera_battery_ok == 0
+        for: 2h
+        labels:
+          severity: info
+        annotations:
+          summary: "Blink camera {{ $labels.camera }} battery low"
+          description: "{{ $labels.camera }} battery state is not OK."
+
+      # --- Faults / safety --------------------------------------------
+      - alert: BoschDeviceFault
+        expr: bosch_device_fault == 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Bosch device {{ $labels.device }} reports a fault"
+          description: "{{ $labels.device }} ({{ $labels.model }}) in {{ $labels.room }} is signalling a fault — check smoke detectors / water alarms first."
+
+      - alert: BoschControllerUpdatePending
+        expr: bosch_shc_update_available == 1
+        for: 24h
+        labels:
+          severity: info
+        annotations:
+          summary: "Bosch Smart Home Controller has a firmware update pending"
+          description: "The SHC has advertised an available update for 24h."

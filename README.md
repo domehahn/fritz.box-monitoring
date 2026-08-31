@@ -48,6 +48,7 @@ Production-grade observability stack for AVM FRITZ!Box routers, mesh repeaters, 
 - [Event Pipeline](docs/event-pipeline.md)
 - [FRITZ!Box Account Permissions](docs/fritz-permissions.md) — grant these to unlock mesh / Wi-Fi / event-log data
 - [iperf3 LAN reference (opt-in)](docs/iperf-reference.md)
+- [Smart-home exporters — Hue / Bosch / Blink / FRITZ!DECT (opt-in)](docs/smart-home-exporters.md)
 - [Troubleshooting Playbook](docs/troubleshooting.md)
 
 Primary dashboards: **Home Network NOC** (`/d/fritz_noc`), **Client Diagnostics**

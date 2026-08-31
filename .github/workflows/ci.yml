@@ -57,7 +57,7 @@ jobs:
           echo "test_password" > secrets/device_manager_admin_password.txt
           echo "test_secret_key" > secrets/device_manager_secret_key.txt
           docker compose -f compose.prod.yml config
-          docker compose -f compose.prod.yml --profile admin --profile iperf config
+          docker compose -f compose.prod.yml --profile admin --profile iperf --profile smarthome config
 
       - name: Validate Prometheus config & rules
         run: |
@@ -68,7 +68,8 @@ jobs:
             --entrypoint promtool prom/prometheus:v2.54.1 \
             check rules /config/prometheus/rules/fritz_alerts.yml \
                         /config/prometheus/rules/fritz_recording_rules.yml \
-                        /config/prometheus/rules/probe_rules.yml
+                        /config/prometheus/rules/probe_rules.yml \
+                        /config/prometheus/rules/smarthome_alerts.yml
 
       - name: Validate Alloy config
         run: |

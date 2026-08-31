@@ -35,6 +35,32 @@ scrape_configs:
     static_configs:
       - targets: ['iperf-probe:9119']
 
+  # ------------------------------------------------------------------
+  # Smart-home exporters (compose profile: smarthome, or hue|bosch|blink|
+  # fritzdect). Targets are DOWN while the profile is disabled — expected.
+  # Each exporter also serves <name>_configured / <name>_up so you can tell
+  # "not enabled" from "enabled but the hub is unreachable".
+  # ------------------------------------------------------------------
+  - job_name: 'hue_exporter'
+    scrape_interval: 60s
+    static_configs:
+      - targets: ['hue-exporter:9120']
+
+  - job_name: 'bosch_exporter'
+    scrape_interval: 60s
+    static_configs:
+      - targets: ['bosch-exporter:9121']
+
+  - job_name: 'blink_exporter'
+    scrape_interval: 60s
+    static_configs:
+      - targets: ['blink-exporter:9122']
+
+  - job_name: 'fritzdect_exporter'
+    scrape_interval: 60s
+    static_configs:
+      - targets: ['fritzdect-exporter:9123']
+
   - job_name: 'probe_icmp_infra'
     scrape_interval: 15s
     metrics_path: /probe
