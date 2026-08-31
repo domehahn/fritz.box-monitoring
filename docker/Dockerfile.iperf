@@ -1,19 +1,15 @@
-# Multi-stage Dockerfile for Device Manager WSGI Service
+# Optional iperf3 LAN reference probe (compose profile: iperf).
 FROM python:3.11-slim AS builder
 
 WORKDIR /build
-
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir poetry poetry-plugin-export
-
 COPY pyproject.toml poetry.lock ./
-
 RUN poetry export -f requirements.txt --output requirements.txt --without-hashes
 
 FROM python:3.11-slim AS runtime
 
 WORKDIR /app
-
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app/src \
@@ -23,22 +19,16 @@ RUN groupadd -g 10001 appgroup && \
     useradd -u 10001 -g appgroup -m -d /home/appuser -s /bin/sh appuser
 
 COPY --from=builder /build/requirements.txt /tmp/requirements.txt
-
-RUN apt-get update && apt-get install -y --no-install-recommends git && \
+RUN apt-get update && apt-get install -y --no-install-recommends git iperf3 && \
     pip install --no-cache-dir -r /tmp/requirements.txt && \
     apt-get purge -y --auto-remove git && \
     rm -rf /var/lib/apt/lists/* /tmp/*
 
 COPY src /app/src
-
 USER appuser:appgroup
+EXPOSE 9119
 
-EXPOSE 5000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:9119/healthz')"
 
-HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/healthz')"
-
-# Single worker so the in-memory sliding-window rate limiter stays consistent;
-# threads cover the light concurrency this admin UI needs. The CSRF token lives
-# in the signed session cookie, so it is already shared across processes.
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--threads", "4", "--timeout", "30", "fritz_monitoring.device_manager.app:app"]
+CMD ["python", "-m", "fritz_monitoring.iperf"]

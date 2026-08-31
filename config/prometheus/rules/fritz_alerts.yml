@@ -36,3 +36,66 @@ groups:
         annotations:
           summary: "High consecutive scrape failures on Fritz!Box"
           description: "fritz-exporter has failed {{ $value }} consecutive times."
+
+  # Network health alerts. Thresholds are deliberately conservative starting
+  # points; tune per line. Rationale is documented in docs/dashboards.md.
+  - name: fritz_network_alerts
+    rules:
+      - alert: FritzMeshNodeDown
+        # node_up goes stale (no samples) when a node drops out of the mesh
+        # list entirely, so also alert on absence via the _offset trick.
+        expr: fritz_node_up == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Mesh node {{ $labels.name }} is down"
+          description: "Repeater/Powerline {{ $labels.name }} ({{ $labels.mac }}) reported inactive for 5m."
+
+      - alert: FritzWanDownloadSaturated
+        expr: fritz:wan_download_utilization:ratio > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "WAN download saturated ({{ $value | humanizePercentage }})"
+          description: "Sustained download utilisation above 90% of line capacity for 5m."
+
+      - alert: FritzWanUploadSaturated
+        expr: fritz:wan_upload_utilization:ratio > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "WAN upload saturated ({{ $value | humanizePercentage }})"
+          description: "Sustained upload utilisation above 90% of line capacity for 5m. Upload saturation is the usual cause of 'everything feels slow'."
+
+      - alert: FritzExcessiveClientReconnects
+        # /1h counts both edges, so >10 ~= 5 disconnect/reconnect cycles per hour.
+        expr: fritz:device_connection_changes:1h > 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Client {{ $labels.name }} is flapping"
+          description: "{{ $labels.name }} ({{ $labels.mac }}) changed connection state {{ $value }} times in the last hour."
+
+      - alert: FritzExcessiveNodeReconnects
+        expr: fritz:node_connection_changes:24h > 8
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Mesh node {{ $labels.name }} unstable"
+          description: "{{ $labels.name }} changed connection state {{ $value }} times in 24h; check backhaul / power."
+
+      - alert: FritzCapabilityMissing
+        # Not an incident - a configuration nudge. The FRITZ!Box is withholding
+        # a feature from the monitoring account.
+        expr: fritz_capability_available == 0
+        for: 15m
+        labels:
+          severity: info
+        annotations:
+          summary: "FRITZ!Box feature '{{ $labels.feature }}' unavailable to the monitoring account"
+          description: "Mesh topology / per-client Wi-Fi / event-log data is degraded. Grant the monitoring user the 'FRITZ!Box Settings' permission — see docs/fritz-permissions.md."

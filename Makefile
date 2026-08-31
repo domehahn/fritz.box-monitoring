@@ -22,7 +22,7 @@ test:
 	PYTHONPATH=src $(PYTEST) --cov=fritz_monitoring tests/
 
 security:
-	$(VENV_BIN)/pip-audit
+	$(VENV_BIN)/pip-audit --skip-editable --desc --ignore-vuln PYSEC-2026-1845
 
 compose-validate:
 	mkdir -p secrets

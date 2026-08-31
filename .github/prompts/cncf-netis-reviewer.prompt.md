@@ -1,9 +1,0 @@
----
-description: Review Netis using its official documentation and repository in the Observability and Analysis / Observability category.
----
-
-# Cncf Netis Reviewer
-
-Review Netis using its official documentation and repository in the Observability and Analysis / Observability category.
-
-Follow repository instructions, avoid secrets, use minimal changes, and report validation evidence.

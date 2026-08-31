@@ -20,10 +20,36 @@ services:
     volumes:
       - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
       - ./config/prometheus/rules:/etc/prometheus/rules
+      - ./config/blackbox/targets:/etc/blackbox/targets
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+
+  iperf-probe:
+    profiles:
+      - iperf
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.iperf
+    ports:
+      - "9119:9119"
+    environment:
+      - IPERF_TARGET=${IPERF_TARGET:-}
+      - IPERF_INTERVAL_SECONDS=${IPERF_INTERVAL_SECONDS:-600}
+      - IPERF_DURATION_SECONDS=${IPERF_DURATION_SECONDS:-5}
+
+  blackbox-exporter:
+    image: quay.io/prometheus/blackbox-exporter:v0.25.0
+    cap_add:
+      - NET_RAW
+    ports:
+      - "9115:9115"
+    volumes:
+      - ./config/blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml
+    command:
+      - '--config.file=/etc/blackbox_exporter/config.yml'
 
   loki:
     image: grafana/loki:3.1.1
@@ -37,9 +63,15 @@ services:
     image: grafana/alloy:v1.3.1
     ports:
       - "1514:1514/udp"
+      - "12345:12345"
     volumes:
       - ./config/alloy/config.alloy:/etc/alloy/config.alloy
-    command: run /etc/alloy/config.alloy
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: >-
+      run
+      --server.http.listen-addr=0.0.0.0:12345
+      --storage.path=/tmp/alloy
+      /etc/alloy/config.alloy
 
   grafana:
     image: grafana/grafana:11.5.0

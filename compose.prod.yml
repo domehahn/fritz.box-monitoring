@@ -50,6 +50,7 @@ services:
     volumes:
       - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./config/prometheus/rules:/etc/prometheus/rules:ro
+      - ./config/blackbox/targets:/etc/blackbox/targets:ro
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -57,6 +58,7 @@ services:
       - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION_TIME:-30d}'
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
     deploy:
       resources:
         limits:
@@ -72,6 +74,36 @@ services:
     depends_on:
       fritz-exporter:
         condition: service_healthy
+
+  blackbox-exporter:
+    image: quay.io/prometheus/blackbox-exporter:v0.25.0
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      # Raw sockets for ICMP echo; still no other privileges.
+      - NET_RAW
+    networks:
+      - backend
+      - fritz_egress
+    volumes:
+      - ./config/blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+    command:
+      - '--config.file=/etc/blackbox_exporter/config.yml'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 64M
+        reservations:
+          memory: 16M
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9115/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
   loki:
     image: grafana/loki:3.1.1
@@ -114,7 +146,17 @@ services:
     volumes:
       - ./config/alloy/config.alloy:/etc/alloy/config.alloy:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    command: run --storage.path=/tmp/alloy /etc/alloy/config.alloy
+    # HTTP on 0.0.0.0 so Prometheus can scrape Alloy's own delivery metrics
+    # (loki.write sent/dropped) — otherwise it binds loopback-only.
+    # storage.path is ephemeral (/tmp): on restart Alloy re-reads recent
+    # container log backlog, which Loki tolerates (dup lines in that window).
+    # A persistent volume needs CAP_DAC_OVERRIDE or a writable-owner mount that
+    # conflicts with cap_drop:ALL here — left as a documented trade-off.
+    command: >-
+      run
+      --server.http.listen-addr=0.0.0.0:12345
+      --storage.path=/tmp/alloy
+      /etc/alloy/config.alloy
     deploy:
       resources:
         limits:
@@ -166,6 +208,42 @@ services:
       loki:
         condition: service_healthy
 
+  # Opt-in LAN reference probe. Enable with:  --profile iperf  and set
+  # IPERF_TARGET to a wired host running `iperf3 -s`. Short test, long interval
+  # (>= 600s) so it cannot continuously consume bandwidth.
+  iperf-probe:
+    profiles:
+      - iperf
+    image: ghcr.io/domehahn/fritz-box-monitoring/iperf-probe:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.iperf
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - IPERF_TARGET=${IPERF_TARGET:-}
+      - IPERF_PORT=${IPERF_PORT:-5201}
+      - IPERF_INTERVAL_SECONDS=${IPERF_INTERVAL_SECONDS:-21600}
+      - IPERF_DURATION_SECONDS=${IPERF_DURATION_SECONDS:-5}
+      - IPERF_BITRATE=${IPERF_BITRATE:-}
+      - IPERF_REVERSE=${IPERF_REVERSE:-false}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9119/healthz')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
   device-manager:
     profiles:
       - admin
@@ -188,6 +266,13 @@ services:
       - FRITZ_PASSWORD_FILE=/run/secrets/fritz_admin_password
       - DEVICE_MANAGER_ADMIN_PASSWORD_FILE=/run/secrets/device_manager_admin_password
       - DEVICE_MANAGER_SECRET_KEY_FILE=/run/secrets/device_manager_secret_key
+      - FLASK_ENV=production
+      # Mark the session cookie Secure so it is only sent over HTTPS. Keep the
+      # default (false) ONLY while reaching the Device Manager directly on the
+      # plain-HTTP 127.0.0.1:5000 bind below; set to true once it sits behind a
+      # TLS-terminating reverse proxy (a Secure cookie is dropped over plain HTTP,
+      # which breaks the session login and CSRF token).
+      - SESSION_COOKIE_SECURE=${DEVICE_MANAGER_SESSION_COOKIE_SECURE:-false}
     secrets:
       - fritz_admin_password
       - device_manager_admin_password

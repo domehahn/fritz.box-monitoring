@@ -43,6 +43,12 @@ jobs:
         run: |
           PYTHONPATH=src pytest --cov=fritz_monitoring tests/
 
+      - name: Audit Python dependencies for known vulnerabilities
+        run: |
+          # PYSEC-2026-1845: pytest /tmp/pytest-of-* local DoS, dev/CI-only, fix needs pytest 9.
+          pip-audit --skip-editable --progress-spinner=off --desc \
+            --ignore-vuln PYSEC-2026-1845
+
       - name: Validate Docker Compose Production Config
         run: |
           mkdir -p secrets
@@ -51,3 +57,66 @@ jobs:
           echo "test_password" > secrets/device_manager_admin_password.txt
           echo "test_secret_key" > secrets/device_manager_secret_key.txt
           docker compose -f compose.prod.yml config
+          docker compose -f compose.prod.yml --profile admin --profile iperf config
+
+      - name: Validate Prometheus config & rules
+        run: |
+          docker run --rm -v "$PWD/config:/config:ro" \
+            --entrypoint promtool prom/prometheus:v2.54.1 \
+            check config /config/prometheus.yml
+          docker run --rm -v "$PWD/config:/config:ro" \
+            --entrypoint promtool prom/prometheus:v2.54.1 \
+            check rules /config/prometheus/rules/fritz_alerts.yml \
+                        /config/prometheus/rules/fritz_recording_rules.yml \
+                        /config/prometheus/rules/probe_rules.yml
+
+      - name: Validate Alloy config
+        run: |
+          docker run --rm -v "$PWD/config/alloy/config.alloy:/c.alloy:ro" \
+            grafana/alloy:v1.3.1 fmt /c.alloy > /dev/null
+
+      - name: Validate Blackbox config
+        run: |
+          docker run --rm -v "$PWD/config/blackbox/blackbox.yml:/c.yml:ro" \
+            --entrypoint sh quay.io/prometheus/blackbox-exporter:v0.25.0 \
+            -c 'blackbox_exporter --config.file=/c.yml --config.check'
+
+      - name: Validate Grafana dashboard JSON
+        run: |
+          python3 - <<'EOF'
+          import json, glob, sys, collections
+          ALLOWED_DS = {"prometheus", "loki", "-- Grafana --", "-- Mixed --", None}
+          uids, problems = collections.Counter(), []
+          for f in sorted(glob.glob("config/grafana/provisioning/dashboards_files/*.json")):
+              d = json.load(open(f))
+              uids[d.get("uid")] += 1
+              pids = []
+              def walk(o):
+                  if isinstance(o, dict):
+                      if o.get("type") == "prometheus" or o.get("type") == "loki":
+                          if o.get("uid") not in ALLOWED_DS:
+                              problems.append(f"{f}: datasource uid {o.get('uid')!r}")
+                      for v in o.values():
+                          walk(v)
+                  elif isinstance(o, list):
+                      for v in o:
+                          walk(v)
+              def collect(ps):
+                  for p in ps:
+                      pids.append(p.get("id"))
+                      collect(p.get("panels", []))
+              collect(d.get("panels", []))
+              walk(d.get("panels", []))
+              dups = [i for i, n in collections.Counter(pids).items() if n > 1]
+              if dups:
+                  problems.append(f"{f}: duplicate panel ids {dups}")
+              placeholder = "$" + "{DS_"
+              if placeholder in json.dumps(d):
+                  problems.append(f"{f}: unresolved datasource import placeholder")
+          for u, n in uids.items():
+              if n > 1:
+                  problems.append(f"duplicate dashboard uid {u!r} ({n}x)")
+          if problems:
+              print("\n".join(problems)); sys.exit(1)
+          print(f"OK: {sum(uids.values())} dashboards, unique uids & panel ids")
+          EOF

@@ -40,6 +40,22 @@ Production-grade observability stack for AVM FRITZ!Box routers, mesh repeaters, 
 
 ## Documentation
 
+### Network Observability / NOC
+
+- [Current State & Gap Analysis](docs/network-observability-current-state.md)
+- [Metric Catalogue](docs/fritz-metrics.md)
+- [Dashboards & Alerts](docs/dashboards.md)
+- [Event Pipeline](docs/event-pipeline.md)
+- [FRITZ!Box Account Permissions](docs/fritz-permissions.md) — grant these to unlock mesh / Wi-Fi / event-log data
+- [iperf3 LAN reference (opt-in)](docs/iperf-reference.md)
+- [Troubleshooting Playbook](docs/troubleshooting.md)
+
+Primary dashboards: **Home Network NOC** (`/d/fritz_noc`), **Client Diagnostics**
+(`/d/fritz_client`), **Mesh Infrastructure** (`/d/fritz_mesh`), **Network Path
+Probes** (`/d/fritz_probes`), **Network Events & Forensics** (`/d/fritz_events`).
+
+### Stack
+
 - [Architecture Guide](file:///Users/dominikhahn/dev/workspace/fritz.box-monitoring/docs/ARCHITECTURE.md)
 - [Production Deployment Guide](file:///Users/dominikhahn/dev/workspace/fritz.box-monitoring/docs/PRODUCTION.md)
 - [Security Guide](file:///Users/dominikhahn/dev/workspace/fritz.box-monitoring/docs/SECURITY.md)

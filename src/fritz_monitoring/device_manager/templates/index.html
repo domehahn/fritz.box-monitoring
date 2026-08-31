@@ -225,12 +225,34 @@
 
 <body>
     <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div style="margin-bottom: 20px;">
+            {% for category, message in messages %}
+            <div
+                style="padding: 12px 16px; border-radius: 8px; margin-bottom: 8px; font-size: 14px;
+                       background: {{ 'rgba(76,175,80,0.15)' if category == 'success' else 'rgba(244,67,54,0.15)' }};
+                       color: {{ '#4caf50' if category == 'success' else '#f44336' }};
+                       border: 1px solid {{ 'rgba(76,175,80,0.3)' if category == 'success' else 'rgba(244,67,54,0.3)' }};">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
         <header>
             <div>
                 <h1>🔧 Fritz!Box Device Manager</h1>
                 <p style="color: #888; margin-top: 5px;">Verwalte deine Netzwerk-Geräte</p>
             </div>
             <div style="display: flex; gap: 10px;">
+                <form method="POST" action="/logout" style="display: inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit"
+                        style="padding: 10px 20px; background: #555; color: white; border: none; border-radius: 6px; font-weight: 500; cursor: pointer;">
+                        🚪 Logout
+                    </button>
+                </form>
                 <a href="/topology"
                     style="padding: 10px 20px; background: #2196f3; color: white; text-decoration: none; border-radius: 6px; font-weight: 500; transition: all 0.2s;"
                     onmouseover="this.style.background='#1976d2'" onmouseout="this.style.background='#2196f3'">
@@ -267,8 +289,9 @@
             </h2>
 
             {% if offline_devices %}
-            <form method="POST" action="/delete-all-offline"
+            <form method="POST" action="{{ url_for('api_delete_all_offline') }}"
                 onsubmit="return confirm('Möchtest du wirklich ALLE {{ offline_devices|length }} offline Geräte löschen?');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn btn-delete-all">
                     🗑️ Alle {{ offline_devices|length }} offline Geräte löschen
                 </button>
@@ -300,8 +323,11 @@
                             {% endif %}
                         </td>
                         <td>
-                            <form method="POST" action="/delete/{{ device.mac }}" style="display: inline;"
+                            <form method="POST"
+                                action="{{ url_for('api_delete_device', mac=device.mac) }}"
+                                style="display: inline;"
                                 onsubmit="return confirm('Gerät {{ device.name }} ({{ device.mac }}) wirklich löschen?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="btn btn-delete">🗑️ Löschen</button>
                             </form>
                         </td>

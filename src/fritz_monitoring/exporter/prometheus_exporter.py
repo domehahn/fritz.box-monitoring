@@ -243,6 +243,35 @@ class FritzPrometheusExporter:
             registry=self.registry,
         )
 
+        # Per-node connected device counts and mesh hierarchy
+        self.repeater_connected_devices = Gauge(
+            "fritz_repeater_connected_devices",
+            "Number of devices connected to this repeater",
+            ["name", "mac"],
+            registry=self.registry,
+        )
+        self.powerline_connected_devices = Gauge(
+            "fritz_powerline_connected_devices",
+            "Number of devices connected to this powerline node",
+            ["name", "mac"],
+            registry=self.registry,
+        )
+        self.node_parent = Gauge(
+            "fritz_node_parent",
+            "Mesh parent relationship (value=1); parent_* empty for the router",
+            ["name", "mac", "parent_name", "parent_mac"],
+            registry=self.registry,
+        )
+
+        # Permission-gated FRITZ!Box features (1 = available to the monitoring
+        # account, 0 = withheld — see docs/fritz-permissions.md).
+        self.capability_available = Gauge(
+            "fritz_capability_available",
+            "1 if the FRITZ!Box exposes this feature to the monitoring account",
+            ["feature"],
+            registry=self.registry,
+        )
+
     def render_snapshot(
         self,
         snapshot: Optional[MonitoringSnapshot],
@@ -340,16 +369,28 @@ class FritzPrometheusExporter:
         self.node_info.clear()
         self.node_link_rx_kbps.clear()
         self.node_link_tx_kbps.clear()
+        self.repeater_connected_devices.clear()
+        self.powerline_connected_devices.clear()
+        self.node_parent.clear()
 
         node_name_to_mac = {n.name: n.mac for n in snapshot.mesh_nodes}
         node_name_to_obj = {n.name: n for n in snapshot.mesh_nodes}
 
+        devices_by_node_name: dict[str, int] = {}
+        for dev in devices:
+            if dev.connected_to:
+                devices_by_node_name[dev.connected_to] = (
+                    devices_by_node_name.get(dev.connected_to, 0) + 1
+                )
+
         for node in snapshot.mesh_nodes:
-            node_type = (
-                "router"
-                if node.is_router
-                else ("powerline" if node.is_powerline else "repeater")
-            )
+            # Placeholder names the FRITZ!Box hands out to unconfigured /
+            # transient mesh entries would otherwise inflate "Problem nodes"
+            # and the state timeline with phantom offline nodes.
+            if node.is_placeholder:
+                continue
+
+            node_type = node.kind
             is_active = node.extra.get("active", True)
             model = node.extra.get("model", node.name)
             parent = node.parent_node or ""
@@ -371,6 +412,24 @@ class FritzPrometheusExporter:
             self.node_link_rx_kbps.labels(node.name, node.mac, node_type).set(rx_kbps)
             self.node_link_tx_kbps.labels(node.name, node.mac, node_type).set(tx_kbps)
 
+            if is_active:
+                direct_devices = devices_by_node_name.get(node.name, 0)
+                if node.kind == "powerline":
+                    self.powerline_connected_devices.labels(node.name, node.mac).set(
+                        direct_devices
+                    )
+                elif node.kind == "repeater":
+                    self.repeater_connected_devices.labels(node.name, node.mac).set(
+                        direct_devices
+                    )
+
+            if parent and parent in node_name_to_mac:
+                self.node_parent.labels(
+                    node.name, node.mac, parent, node_name_to_mac[parent]
+                ).set(1)
+            elif node.is_router:
+                self.node_parent.labels(node.name, node.mac, "", "").set(1)
+
         # Render Devices
         self.device_up.clear()
         self.device_rx_bytes_total.clear()
@@ -385,9 +444,9 @@ class FritzPrometheusExporter:
             is_rep = "false"
             is_pwl = "false"
             if connected_obj:
-                if connected_obj.is_powerline:
+                if connected_obj.kind == "powerline":
                     is_pwl = "true"
-                elif connected_obj.is_repeater and not connected_obj.is_router:
+                elif connected_obj.kind == "repeater":
                     is_rep = "true"
 
             dev_args = (
@@ -428,4 +487,21 @@ class FritzPrometheusExporter:
             snapshot = self.collector_service.get_snapshot()
             state = self.collector_service.get_state()
             self.render_snapshot(snapshot, state)
+            self._render_capabilities()
         return generate_latest(self.registry)
+
+    def _render_capabilities(self) -> None:
+        """Expose fritz_capability_available{feature} from the collector probe."""
+        get_caps = getattr(self.collector_service, "get_capabilities", None)
+        if get_caps is None:
+            return
+        report = get_caps()
+        # fritz-avm-client PermissionReport.as_flags() -> {feature: 1|0}
+        flags = getattr(report, "as_flags", None) or getattr(
+            report, "as_metric_rows", None
+        )
+        if flags is None:
+            return
+        self.capability_available.clear()
+        for feature, value in flags().items():
+            self.capability_available.labels(feature=feature).set(value)

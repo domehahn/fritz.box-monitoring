@@ -1,9 +1,0 @@
----
-description: Review Aqua Security (member) using its official documentation and repository in the CNCF Members / Silver category.
----
-
-# Cncf Aqua Security Member Reviewer
-
-Review Aqua Security (member) using its official documentation and repository in the CNCF Members / Silver category.
-
-Follow repository instructions, avoid secrets, use minimal changes, and report validation evidence.
