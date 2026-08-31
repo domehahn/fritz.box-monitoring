@@ -52,6 +52,7 @@ class CollectorService:
         fritz_settings: FritzSettings,
         interval_seconds: float = 30.0,
         emit_events: bool = True,
+        emit_device_log: bool = True,
     ) -> None:
         self.fritz_settings = fritz_settings
         self.interval_seconds = interval_seconds
@@ -70,6 +71,12 @@ class CollectorService:
             from .events import EventDeriver
 
             self._event_deriver = EventDeriver()
+
+        self._device_log = None
+        if emit_device_log:
+            from .devicelog import DeviceLogTailer
+
+            self._device_log = DeviceLogTailer()
 
         self._capabilities: Optional[object] = None
 
@@ -204,6 +211,12 @@ class CollectorService:
                     self._event_deriver.process(snapshot)
                 except Exception as exc:  # pragma: no cover - defensive
                     logger.warning(f"Event derivation failed: {exc}")
+
+            if self._device_log is not None:
+                try:
+                    self._device_log.poll(self.get_client())
+                except Exception as exc:  # pragma: no cover - defensive
+                    logger.warning(f"Device-log tailing failed: {exc}")
 
             return snapshot
 

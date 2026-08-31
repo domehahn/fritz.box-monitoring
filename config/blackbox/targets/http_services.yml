@@ -1,0 +1,31 @@
+# HTTP(S) probe targets (job: probe_http, module: http_2xx).
+# Prometheus picks up edits within ~30s (file_sd) — no restart.
+#
+# For every HTTPS target you also get, for free:
+#   probe_ssl_earliest_cert_expiry   -> alerted on by ProbeTLSCertExpiringSoon
+#   probe_http_status_code, probe_http_duration_seconds{phase=...}
+#
+# `svc` is a friendly name for dashboards. Add your own: the kids' game server
+# login page, the work VPN portal, your NAS UI, a bank, a status page, etc.
+
+- targets:
+    - http://192.168.178.1/
+  labels: { svc: fritzbox_ui, scope: lan }
+
+- targets:
+    - https://1.1.1.1/
+    - https://8.8.8.8/
+  labels: { svc: dns_https, scope: internet }
+
+- targets:
+    - https://www.google.com/
+    - https://cloudflare.com/
+  labels: { svc: web_anchor, scope: internet }
+
+# --- examples, uncomment / edit -------------------------------------------
+# - targets: ["https://vpn.example-corp.com/"]
+#   labels: { svc: work_vpn, scope: internet }
+# - targets: ["https://account.mojang.com/"]
+#   labels: { svc: minecraft_auth, scope: internet }
+# - targets: ["http://192.168.178.20:5000/"]
+#   labels: { svc: nas_ui, scope: lan }

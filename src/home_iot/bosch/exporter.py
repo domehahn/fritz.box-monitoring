@@ -6,15 +6,14 @@ certificate you pair once by pressing the button on the controller (see
 
 Because the exact ``boschshcpy`` object surface shifts between releases, all the
 fragile attribute access is confined to :func:`read_devices`; everything the
-metrics are built from is the plain :class:`BoschDeviceView`, which
-:func:`to_metric_rows` (pure, no I/O) consumes.
+metrics are built from is the plain :class:`BoschDeviceView` / :class:`BoschSnapshot`.
 """
 from __future__ import annotations
 
 import asyncio
 import time
 from dataclasses import dataclass, field
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from loguru import logger
 from prometheus_client import CollectorRegistry, Gauge, generate_latest
@@ -32,6 +31,20 @@ _BATTERY_LEVELS = {
     "CRITICAL_LOW": (5.0, 0),
     "CRITICALLY_LOW_BATTERY": (5.0, 0),
     "NOT_AVAILABLE": (0.0, 1),
+}
+
+#: air-quality / rating words -> 0 good, 1 medium, 2 bad
+_RATING = {
+    "GOOD": 0,
+    "NORMAL": 0,
+    "OK": 0,
+    "MEDIUM": 1,
+    "LITTLE_STUFFY": 1,
+    "SLIGHTLY": 1,
+    "BAD": 2,
+    "HIGH": 2,
+    "STUFFY": 2,
+    "CRITICAL": 2,
 }
 
 
@@ -70,6 +83,14 @@ class BoschDeviceView:
     temperature_c: Optional[float] = None
     humidity_pct: Optional[float] = None
     valve_percent: Optional[float] = None
+    setpoint_c: Optional[float] = None
+    power_w: Optional[float] = None
+    energy_wh: Optional[float] = None
+    switch_on: Optional[int] = None
+    contact_open: Optional[int] = None
+    air_purity_ppm: Optional[float] = None
+    air_rating: Optional[int] = None
+    smoke_alarm: Optional[int] = None
     fault: int = 0
 
 
@@ -78,6 +99,11 @@ class BoschSnapshot:
     devices: List[BoschDeviceView] = field(default_factory=list)
     shc_version: str = ""
     shc_update_available: int = 0
+    intrusion_armed: Optional[int] = None
+    intrusion_alarm: Optional[int] = None
+    intrusion_available: Optional[int] = None
+    #: surveillance system name -> 1 if alarm active
+    surveillance: Dict[str, int] = field(default_factory=dict)
 
 
 def _f(value: Any) -> Optional[float]:
@@ -93,6 +119,21 @@ def _battery(name: Optional[str]) -> tuple[Optional[float], Optional[int]]:
     return _BATTERY_LEVELS.get(str(name).upper(), (None, None))
 
 
+def _rating(word: Any) -> Optional[int]:
+    if not word:
+        return None
+    return _RATING.get(str(word).upper())
+
+
+def _rooms(session: Any) -> Dict[str, str]:
+    out: Dict[str, str] = {}
+    for r in getattr(session, "rooms", []) or []:
+        rid = getattr(r, "id", None)
+        if rid:
+            out[str(rid)] = str(getattr(r, "name", rid) or rid)
+    return out
+
+
 def read_devices(session: Any) -> BoschSnapshot:
     """Extract a :class:`BoschSnapshot` from a live ``boschshcpy`` session."""
     snap = BoschSnapshot()
@@ -106,13 +147,16 @@ def read_devices(session: Any) -> BoschSnapshot:
             1 if upd in ("UPDATE_AVAILABLE", "UPDATE_IN_PROGRESS", "DOWNLOADING") else 0
         )
 
+    rooms = _rooms(session)
+
     for dev in getattr(session, "devices", []) or []:
         status = str(getattr(dev, "status", "") or "").upper()
+        rid = str(getattr(dev, "room_id", "") or "")
         view = BoschDeviceView(
             id=str(getattr(dev, "id", "")),
             name=str(getattr(dev, "name", "") or getattr(dev, "id", "")),
             model=str(getattr(dev, "device_model", "") or ""),
-            room=str(getattr(dev, "room_id", "") or ""),
+            room=rooms.get(rid, rid),
             available=1 if status in ("AVAILABLE", "", "ONLINE") else 0,
         )
         bl = getattr(dev, "batterylevel", None)
@@ -127,11 +171,49 @@ def read_devices(session: Any) -> BoschSnapshot:
                 view.temperature_c = _f(get("temperature"))
             elif "humiditylevel" in sid:
                 view.humidity_pct = _f(get("humidity"))
-            elif sid in ("valvetapcontrol", "valve") or "valvetap" in sid:
+            elif "valvetappet" in sid or "valvetap" in sid:
                 view.valve_percent = _f(get("position") or get("valvePosition"))
+            elif "roomclimatecontrol" in sid:
+                view.setpoint_c = _f(get("setpointTemperature"))
+            elif sid == "powermeter":
+                view.power_w = _f(get("powerConsumption"))
+                view.energy_wh = _f(get("energyConsumption"))
+            elif sid in ("powerswitch", "binaryswitch"):
+                sw = get("switchState") or get("on")
+                view.switch_on = 1 if str(sw).upper() in ("ON", "TRUE", "1") else 0
+            elif sid == "shuttercontact":
+                view.contact_open = 1 if str(get("value")).upper() == "OPEN" else 0
+            elif sid == "airqualitylevel":
+                view.air_purity_ppm = _f(get("purity"))
+                view.air_rating = _rating(get("combinedRating"))
+                if view.temperature_c is None:
+                    view.temperature_c = _f(get("temperature"))
+                if view.humidity_pct is None:
+                    view.humidity_pct = _f(get("humidity"))
+            elif sid in ("smokedetectorcheck", "alarm"):
+                val = str(get("value") or "").upper()
+                if val:
+                    view.smoke_alarm = (
+                        0 if val in ("NONE", "IDLE_OFF", "OK", "SMOKE_TEST_OK") else 1
+                    )
             if str(get("faults") or "").strip() or get("fault"):
                 view.fault = 1
         snap.devices.append(view)
+
+    # --- intrusion detection system --------------------------------------
+    try:
+        isys = getattr(session, "intrusion_system", None)
+        if isys is not None:
+            arming = str(getattr(isys, "arming_state", "")).upper()
+            alarm = str(getattr(isys, "alarm_state", "")).upper()
+            snap.intrusion_armed = 0 if "DISARM" in arming else 1
+            snap.intrusion_alarm = 0 if alarm in ("ALARM_OFF", "") else 1
+            snap.intrusion_available = (
+                1 if getattr(isys, "system_availability", True) else 0
+            )
+    except Exception as exc:  # noqa: BLE001 - optional subsystem
+        logger.debug("intrusion system read failed: {}", exc)
+
     return snap
 
 
@@ -156,6 +238,27 @@ class BoschExporter:
             "bosch_shc_battery_low_count", "Devices reporting a low/critical battery"
         )
         self.fault_count = g("bosch_shc_fault_count", "Devices reporting a fault")
+        self.smoke_alarm_count = g(
+            "bosch_shc_smoke_alarm_count", "Smoke detectors currently in alarm"
+        )
+        self.total_power = g(
+            "bosch_shc_total_power_watts", "Sum of all plug power draw"
+        )
+
+        self.intrusion_armed = g(
+            "bosch_intrusion_armed", "1 if the intrusion system is armed"
+        )
+        self.intrusion_alarm = g(
+            "bosch_intrusion_alarm", "1 if the intrusion system is in alarm"
+        )
+        self.intrusion_available = g(
+            "bosch_intrusion_available", "1 if the intrusion system is reachable"
+        )
+        self.surveillance = g(
+            "bosch_surveillance_alarm",
+            "1 if this surveillance system is in alarm",
+            ("system",),
+        )
 
         lbl = ("device", "model", "room")
         self.available = g(
@@ -174,6 +277,24 @@ class BoschExporter:
         self.valve = g(
             "bosch_device_valve_percent", "Radiator valve position (0-100)", lbl
         )
+        self.setpoint = g("bosch_device_setpoint_celsius", "Room climate setpoint", lbl)
+        self.power = g(
+            "bosch_device_power_watts", "Current real power draw (plugs)", lbl
+        )
+        self.energy = g(
+            "bosch_device_energy_watt_hours_total", "Cumulative energy (plugs)", lbl
+        )
+        self.switch_on = g("bosch_device_switch_on", "1 if the plug output is on", lbl)
+        self.contact_open = g(
+            "bosch_device_contact_open", "1 if the door/window contact is open", lbl
+        )
+        self.air_purity = g(
+            "bosch_device_air_purity_ppm", "TWINGUARD air purity (VOC ppm)", lbl
+        )
+        self.air_rating = g("bosch_device_air_rating", "0 good / 1 medium / 2 bad", lbl)
+        self.smoke_alarm = g(
+            "bosch_device_smoke_alarm", "1 if this detector is in alarm", lbl
+        )
         self.fault = g("bosch_device_fault", "1 if the device reports a fault", lbl)
 
     def update(
@@ -189,8 +310,17 @@ class BoschExporter:
             self.temperature,
             self.humidity,
             self.valve,
+            self.setpoint,
+            self.power,
+            self.energy,
+            self.switch_on,
+            self.contact_open,
+            self.air_purity,
+            self.air_rating,
+            self.smoke_alarm,
             self.fault,
             self.info,
+            self.surveillance,
         ):
             m.clear()
         if snap is None or not ok:
@@ -200,26 +330,50 @@ class BoschExporter:
         self.update_available.set(snap.shc_update_available)
         if snap.shc_version:
             self.info.labels(snap.shc_version).set(1)
+        for k, v in (
+            (self.intrusion_armed, snap.intrusion_armed),
+            (self.intrusion_alarm, snap.intrusion_alarm),
+            (self.intrusion_available, snap.intrusion_available),
+        ):
+            if v is not None:
+                k.set(v)
+        for name, alarm in snap.surveillance.items():
+            self.surveillance.labels(name).set(alarm)
 
-        low = faults = 0
+        low = faults = smoke = 0
+        total_power = 0.0
         for d in snap.devices:
             lbl = (d.name, d.model, d.room)
             self.available.labels(*lbl).set(d.available)
-            if d.battery_percent is not None:
-                self.battery_percent.labels(*lbl).set(d.battery_percent)
+            for value, metric in (
+                (d.battery_percent, self.battery_percent),
+                (d.temperature_c, self.temperature),
+                (d.humidity_pct, self.humidity),
+                (d.valve_percent, self.valve),
+                (d.setpoint_c, self.setpoint),
+                (d.power_w, self.power),
+                (d.energy_wh, self.energy),
+                (d.switch_on, self.switch_on),
+                (d.contact_open, self.contact_open),
+                (d.air_purity_ppm, self.air_purity),
+                (d.air_rating, self.air_rating),
+            ):
+                if value is not None:
+                    metric.labels(*lbl).set(float(value))
             if d.battery_ok is not None:
                 self.battery_ok.labels(*lbl).set(d.battery_ok)
                 low += 0 if d.battery_ok else 1
-            if d.temperature_c is not None:
-                self.temperature.labels(*lbl).set(d.temperature_c)
-            if d.humidity_pct is not None:
-                self.humidity.labels(*lbl).set(d.humidity_pct)
-            if d.valve_percent is not None:
-                self.valve.labels(*lbl).set(d.valve_percent)
+            if d.smoke_alarm is not None:
+                self.smoke_alarm.labels(*lbl).set(d.smoke_alarm)
+                smoke += d.smoke_alarm
+            if d.power_w is not None:
+                total_power += d.power_w
             self.fault.labels(*lbl).set(d.fault)
             faults += d.fault
         self.battery_low_count.set(low)
         self.fault_count.set(faults)
+        self.smoke_alarm_count.set(smoke)
+        self.total_power.set(total_power)
 
     def render(self) -> bytes:
         return generate_latest(self.registry)

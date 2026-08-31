@@ -1,0 +1,39 @@
+groups:
+  - name: climate_recording_rules
+    interval: 60s
+    rules:
+      # Per-room mean temperature / humidity from whatever Bosch sensors sit in
+      # the room (thermostats, TWINGUARD, humidity sensors).
+      - record: room:temperature:celsius
+        expr: avg by (room) (bosch_device_temperature_celsius)
+
+      - record: room:humidity:percent
+        expr: avg by (room) (bosch_device_humidity_percent)
+
+      # Dew point (Magnus, Sonntag 1990 coefficients). Only rooms that have both
+      # a temperature and a humidity reading get a value.
+      - record: room:dew_point:celsius
+        expr: |
+          243.12 * (
+            ln(room:humidity:percent / 100)
+            + (17.62 * room:temperature:celsius) / (243.12 + room:temperature:celsius)
+          )
+          / (
+            17.62 - (
+              ln(room:humidity:percent / 100)
+              + (17.62 * room:temperature:celsius) / (243.12 + room:temperature:celsius)
+            )
+          )
+
+      # Margin between room temperature and its dew point. < ~3 K on a cold
+      # outside wall = condensation / mould risk.
+      - record: room:dew_point_margin:kelvin
+        expr: room:temperature:celsius - room:dew_point:celsius
+
+      # Rooms actively heating (any radiator valve materially open).
+      - record: room:heating_active:bool
+        expr: max by (room) (bosch_device_valve_percent > bool 10)
+
+      # Whole-home instantaneous power from metered plugs (kW).
+      - record: home:plug_power:kilowatts
+        expr: sum(bosch_device_power_watts) / 1000
