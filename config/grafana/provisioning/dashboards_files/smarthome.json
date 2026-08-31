@@ -598,7 +598,7 @@
     {
       "id": 10,
       "type": "row",
-      "title": "Reachability",
+      "title": "Reachability \u2014 only problem devices are listed",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -646,7 +646,36 @@
             "filterable": true
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "state"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "\u26a0",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          }
+        ]
       },
       "transformations": [
         {
@@ -656,10 +685,14 @@
               "Time": true,
               "__name__": true,
               "job": true,
-              "instance": true
+              "instance": true,
+              "container": true,
+              "service": true,
+              "service_name": true,
+              "stack": true
             },
             "renameByName": {
-              "Value": "Hue \u2014 devices off the Zigbee mesh"
+              "Value": "state"
             }
           }
         }
@@ -703,7 +736,36 @@
             "filterable": true
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "state"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "\u26a0",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          }
+        ]
       },
       "transformations": [
         {
@@ -713,10 +775,14 @@
               "Time": true,
               "__name__": true,
               "job": true,
-              "instance": true
+              "instance": true,
+              "container": true,
+              "service": true,
+              "service_name": true,
+              "stack": true
             },
             "renameByName": {
-              "Value": "Bosch \u2014 unavailable devices"
+              "Value": "state"
             }
           }
         }
@@ -760,7 +826,36 @@
             "filterable": true
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "state"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "\u26a0",
+                        "color": "red"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          }
+        ]
       },
       "transformations": [
         {
@@ -770,10 +865,14 @@
               "Time": true,
               "__name__": true,
               "job": true,
-              "instance": true
+              "instance": true,
+              "container": true,
+              "service": true,
+              "service_name": true,
+              "stack": true
             },
             "renameByName": {
-              "Value": "FRITZ!DECT \u2014 absent devices"
+              "Value": "state"
             }
           }
         }
@@ -782,7 +881,7 @@
     {
       "id": 14,
       "type": "table",
-      "title": "Blink \u2014 sync modules",
+      "title": "Blink \u2014 sync modules (Bridges)",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -817,7 +916,40 @@
             "filterable": true
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "status"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "OFFLINE",
+                        "color": "red"
+                      },
+                      "1": {
+                        "text": "ONLINE",
+                        "color": "green"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          }
+        ]
       },
       "transformations": [
         {
@@ -827,10 +959,14 @@
               "Time": true,
               "__name__": true,
               "job": true,
-              "instance": true
+              "instance": true,
+              "container": true,
+              "service": true,
+              "service_name": true,
+              "stack": true
             },
             "renameByName": {
-              "Value": "Blink \u2014 sync modules"
+              "Value": "status"
             }
           }
         }
@@ -839,7 +975,7 @@
     {
       "id": 15,
       "type": "row",
-      "title": "Batteries",
+      "title": "Blink \u2014 cameras",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -851,6 +987,245 @@
     },
     {
       "id": 16,
+      "type": "table",
+      "title": "Blink cameras",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 29,
+        "w": 24,
+        "h": 12
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "blink_camera_battery_ok",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "blink_camera_battery_millivolts",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "blink_camera_temperature_celsius",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "blink_camera_wifi_strength",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "blink_camera_motion_enabled",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "blink_camera_motion_detected",
+          "format": "table",
+          "instant": true,
+          "range": false,
+          "refId": "F"
+        }
+      ],
+      "options": {
+        "showHeader": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "battery"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "LOW",
+                        "color": "red"
+                      },
+                      "1": {
+                        "text": "OK",
+                        "color": "green"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "armed"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "disarmed",
+                        "color": "red"
+                      },
+                      "1": {
+                        "text": "armed",
+                        "color": "green"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "motion now"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "\u2013",
+                        "color": "text"
+                      },
+                      "1": {
+                        "text": "MOTION",
+                        "color": "orange"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true,
+              "instance": true,
+              "container": true,
+              "service": true,
+              "service_name": true,
+              "stack": true
+            },
+            "renameByName": {
+              "Value #A": "battery",
+              "Value #B": "battery mV",
+              "Value #C": "temp \u00b0C",
+              "Value #D": "wifi",
+              "Value #E": "armed",
+              "Value #F": "motion now"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "type": "row",
+      "title": "Batteries",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 41,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 18,
       "type": "timeseries",
       "title": "Hue accessory battery %",
       "datasource": {
@@ -859,7 +1234,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 29,
+        "y": 42,
         "w": 12,
         "h": 8
       },
@@ -902,7 +1277,7 @@
       }
     },
     {
-      "id": 17,
+      "id": 19,
       "type": "timeseries",
       "title": "Bosch battery state (1 = OK)",
       "datasource": {
@@ -911,7 +1286,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 29,
+        "y": 42,
         "w": 12,
         "h": 8
       },
@@ -954,7 +1329,7 @@
       }
     },
     {
-      "id": 18,
+      "id": 20,
       "type": "timeseries",
       "title": "Blink camera battery (1 = OK)",
       "datasource": {
@@ -963,7 +1338,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 37,
+        "y": 50,
         "w": 12,
         "h": 8
       },
@@ -1006,7 +1381,7 @@
       }
     },
     {
-      "id": 19,
+      "id": 21,
       "type": "timeseries",
       "title": "Blink camera battery voltage (mV)",
       "datasource": {
@@ -1015,7 +1390,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 37,
+        "y": 50,
         "w": 12,
         "h": 8
       },
@@ -1058,20 +1433,20 @@
       }
     },
     {
-      "id": 20,
+      "id": 22,
       "type": "row",
       "title": "Energy \u2014 FRITZ!DECT",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 45,
+        "y": 58,
         "w": 24,
         "h": 1
       },
       "panels": []
     },
     {
-      "id": 21,
+      "id": 23,
       "type": "timeseries",
       "title": "Current power draw (W)",
       "datasource": {
@@ -1080,7 +1455,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 46,
+        "y": 59,
         "w": 12,
         "h": 8
       },
@@ -1123,7 +1498,7 @@
       }
     },
     {
-      "id": 22,
+      "id": 24,
       "type": "timeseries",
       "title": "Energy since first use (kWh)",
       "datasource": {
@@ -1132,7 +1507,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 46,
+        "y": 59,
         "w": 12,
         "h": 8
       },
@@ -1175,7 +1550,7 @@
       }
     },
     {
-      "id": 23,
+      "id": 25,
       "type": "table",
       "title": "Sockets \u2014 now",
       "datasource": {
@@ -1184,7 +1559,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 54,
+        "y": 67,
         "w": 12,
         "h": 8
       },
@@ -1222,17 +1597,21 @@
               "Time": true,
               "__name__": true,
               "job": true,
-              "instance": true
+              "instance": true,
+              "container": true,
+              "service": true,
+              "service_name": true,
+              "stack": true
             },
             "renameByName": {
-              "Value": "Sockets \u2014 now"
+              "Value": "Value"
             }
           }
         }
       ]
     },
     {
-      "id": 24,
+      "id": 26,
       "type": "timeseries",
       "title": "DECT temperature (\u00b0C)",
       "datasource": {
@@ -1241,7 +1620,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 54,
+        "y": 67,
         "w": 12,
         "h": 8
       },
@@ -1284,20 +1663,20 @@
       }
     },
     {
-      "id": 25,
+      "id": 27,
       "type": "row",
       "title": "Environment sensors",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 62,
+        "y": 75,
         "w": 24,
         "h": 1
       },
       "panels": []
     },
     {
-      "id": 26,
+      "id": 28,
       "type": "timeseries",
       "title": "Illuminance (lux) \u2014 Hue motion sensors",
       "datasource": {
@@ -1306,7 +1685,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 63,
+        "y": 76,
         "w": 12,
         "h": 8
       },
@@ -1349,7 +1728,7 @@
       }
     },
     {
-      "id": 27,
+      "id": 29,
       "type": "timeseries",
       "title": "Humidity (%) \u2014 Bosch",
       "datasource": {
@@ -1358,7 +1737,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 63,
+        "y": 76,
         "w": 12,
         "h": 8
       },
@@ -1401,7 +1780,7 @@
       }
     },
     {
-      "id": 28,
+      "id": 30,
       "type": "timeseries",
       "title": "Motion detected \u2014 Hue",
       "datasource": {
@@ -1410,7 +1789,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 71,
+        "y": 84,
         "w": 12,
         "h": 8
       },
@@ -1453,7 +1832,7 @@
       }
     },
     {
-      "id": 29,
+      "id": 31,
       "type": "timeseries",
       "title": "Blink camera temperature (\u00b0C)",
       "datasource": {
@@ -1462,7 +1841,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 71,
+        "y": 84,
         "w": 12,
         "h": 8
       },
