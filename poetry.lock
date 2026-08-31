@@ -683,8 +683,8 @@ dev = ["build (>=1.0.0)", "mypy (>=1.5.0)", "pip-audit (>=2.6.0)", "pytest (>=7.
 [package.source]
 type = "git"
 url = "https://github.com/domehahn/fritz-avm-client.git"
-reference = "feat/mesh-model-and-capabilities"
-resolved_reference = "895be777928b9bf77c087643216b64e531d6d04b"
+reference = "v0.4.0"
+resolved_reference = "185fd440f3e57d7548274d8a88f4a907b9ea4fd9"
 
 [[package]]
 name = "fritzconnection"
@@ -2645,4 +2645,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4.0"
-content-hash = "a5ba5a4e85448b9e89033b4e4ae89d4d042fc6e4207fe94dd5c13ba6f5110753"
+content-hash = "c88d05f42d7864c581188b908d02b4f6c4881e4c1f79c69bc972dbd25e2f90f4"
