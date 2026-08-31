@@ -389,6 +389,7 @@ services:
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
     volumes:
       - home_iot_data:/data
+      - ./secrets:/secrets:ro   # BLINK_PASSWORD may point at /secrets/blink_password.txt
     deploy:
       resources:
         limits:
