@@ -243,6 +243,26 @@ class FritzPrometheusExporter:
             registry=self.registry,
         )
 
+        # Per-node connected device counts and mesh hierarchy
+        self.repeater_connected_devices = Gauge(
+            "fritz_repeater_connected_devices",
+            "Number of devices connected to this repeater",
+            ["name", "mac"],
+            registry=self.registry,
+        )
+        self.powerline_connected_devices = Gauge(
+            "fritz_powerline_connected_devices",
+            "Number of devices connected to this powerline node",
+            ["name", "mac"],
+            registry=self.registry,
+        )
+        self.node_parent = Gauge(
+            "fritz_node_parent",
+            "Mesh parent relationship (value=1); parent_* empty for the router",
+            ["name", "mac", "parent_name", "parent_mac"],
+            registry=self.registry,
+        )
+
     def render_snapshot(
         self,
         snapshot: Optional[MonitoringSnapshot],
@@ -340,9 +360,19 @@ class FritzPrometheusExporter:
         self.node_info.clear()
         self.node_link_rx_kbps.clear()
         self.node_link_tx_kbps.clear()
+        self.repeater_connected_devices.clear()
+        self.powerline_connected_devices.clear()
+        self.node_parent.clear()
 
         node_name_to_mac = {n.name: n.mac for n in snapshot.mesh_nodes}
         node_name_to_obj = {n.name: n for n in snapshot.mesh_nodes}
+
+        devices_by_node_name: dict[str, int] = {}
+        for dev in devices:
+            if dev.connected_to:
+                devices_by_node_name[dev.connected_to] = (
+                    devices_by_node_name.get(dev.connected_to, 0) + 1
+                )
 
         for node in snapshot.mesh_nodes:
             node_type = (
@@ -370,6 +400,24 @@ class FritzPrometheusExporter:
             tx_kbps = node.extra.get("link_tx_kbps", 0)
             self.node_link_rx_kbps.labels(node.name, node.mac, node_type).set(rx_kbps)
             self.node_link_tx_kbps.labels(node.name, node.mac, node_type).set(tx_kbps)
+
+            if is_active:
+                direct_devices = devices_by_node_name.get(node.name, 0)
+                if node.is_powerline:
+                    self.powerline_connected_devices.labels(node.name, node.mac).set(
+                        direct_devices
+                    )
+                elif node.is_repeater and not node.is_router:
+                    self.repeater_connected_devices.labels(node.name, node.mac).set(
+                        direct_devices
+                    )
+
+            if parent and parent in node_name_to_mac:
+                self.node_parent.labels(
+                    node.name, node.mac, parent, node_name_to_mac[parent]
+                ).set(1)
+            elif node.is_router:
+                self.node_parent.labels(node.name, node.mac, "", "").set(1)
 
         # Render Devices
         self.device_up.clear()

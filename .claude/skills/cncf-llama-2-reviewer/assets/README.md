@@ -1,3 +1,0 @@
-# cncf-llama-2-reviewer Assets
-
-Place templates, static resources, schemas, diagrams, example payloads, or lookup tables for this skill here.

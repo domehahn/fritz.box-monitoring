@@ -43,6 +43,12 @@ jobs:
         run: |
           PYTHONPATH=src pytest --cov=fritz_monitoring tests/
 
+      - name: Audit Python dependencies for known vulnerabilities
+        run: |
+          # PYSEC-2026-1845: pytest /tmp/pytest-of-* local DoS, dev/CI-only, fix needs pytest 9.
+          pip-audit --skip-editable --progress-spinner=off --desc \
+            --ignore-vuln PYSEC-2026-1845
+
       - name: Validate Docker Compose Production Config
         run: |
           mkdir -p secrets

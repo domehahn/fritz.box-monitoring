@@ -16,10 +16,11 @@ WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app/src
+    PYTHONPATH=/app/src \
+    HOME=/home/appuser
 
 RUN groupadd -g 10001 appgroup && \
-    useradd -u 10001 -g appgroup -s /bin/sh appuser
+    useradd -u 10001 -g appgroup -m -d /home/appuser -s /bin/sh appuser
 
 COPY --from=builder /build/requirements.txt /tmp/requirements.txt
 
@@ -37,4 +38,7 @@ EXPOSE 5000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/healthz')"
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "30", "fritz_monitoring.device_manager.app:app"]
+# Single worker so the in-memory sliding-window rate limiter stays consistent;
+# threads cover the light concurrency this admin UI needs. The CSRF token lives
+# in the signed session cookie, so it is already shared across processes.
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--threads", "4", "--timeout", "30", "fritz_monitoring.device_manager.app:app"]

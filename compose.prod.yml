@@ -188,6 +188,13 @@ services:
       - FRITZ_PASSWORD_FILE=/run/secrets/fritz_admin_password
       - DEVICE_MANAGER_ADMIN_PASSWORD_FILE=/run/secrets/device_manager_admin_password
       - DEVICE_MANAGER_SECRET_KEY_FILE=/run/secrets/device_manager_secret_key
+      - FLASK_ENV=production
+      # Mark the session cookie Secure so it is only sent over HTTPS. Keep the
+      # default (false) ONLY while reaching the Device Manager directly on the
+      # plain-HTTP 127.0.0.1:5000 bind below; set to true once it sits behind a
+      # TLS-terminating reverse proxy (a Secure cookie is dropped over plain HTTP,
+      # which breaks the session login and CSRF token).
+      - SESSION_COOKIE_SECURE=${DEVICE_MANAGER_SESSION_COOKIE_SECURE:-false}
     secrets:
       - fritz_admin_password
       - device_manager_admin_password

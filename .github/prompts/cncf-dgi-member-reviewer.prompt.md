@@ -1,9 +1,0 @@
----
-description: Review DGi (member) using its official documentation and repository in the CNCF Members / Silver category.
----
-
-# Cncf Dgi Member Reviewer
-
-Review DGi (member) using its official documentation and repository in the CNCF Members / Silver category.
-
-Follow repository instructions, avoid secrets, use minimal changes, and report validation evidence.

@@ -25,8 +25,23 @@ def test_exporter_render_snapshot():
         ),
         dsl=DslStats(downstream_attenuation=12.5),
         wlan=WlanStats(total_packets_sent=50, total_packets_received=100),
-        mesh_nodes=(Node(name="fritz.box", mac="00:11:22:33:44:55", is_router=True),),
-        devices=(Device(name="Laptop", mac="AA:11:22:33:44:55", is_active=True),),
+        mesh_nodes=(
+            Node(name="fritz.box", mac="00:11:22:33:44:55", is_router=True),
+            Node(
+                name="Repeater-OG",
+                mac="AA:BB:CC:DD:EE:FF",
+                is_repeater=True,
+                parent_node="fritz.box",
+            ),
+        ),
+        devices=(
+            Device(
+                name="Laptop",
+                mac="AA:11:22:33:44:55",
+                is_active=True,
+                connected_to="Repeater-OG",
+            ),
+        ),
         collection_duration_seconds=0.45,
     )
     state = CollectorState(last_success=now, consecutive_failures=0)
@@ -37,6 +52,14 @@ def test_exporter_render_snapshot():
     assert "fritz_scrape_success 1.0" in metrics_output
     assert "fritz_router_bytes_received_total 10000.0" in metrics_output
     assert "fritz_online_devices 1.0" in metrics_output
+    assert (
+        'fritz_repeater_connected_devices{mac="AA:BB:CC:DD:EE:FF",name="Repeater-OG"} 1.0'
+        in metrics_output
+    )
+    assert (
+        'fritz_node_parent{mac="AA:BB:CC:DD:EE:FF",name="Repeater-OG",'
+        'parent_mac="00:11:22:33:44:55",parent_name="fritz.box"} 1.0' in metrics_output
+    )
 
 
 @pytest.mark.asyncio
