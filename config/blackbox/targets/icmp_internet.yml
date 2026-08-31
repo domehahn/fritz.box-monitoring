@@ -1,0 +1,11 @@
+# ICMP probe targets: external anchors for WAN latency / packet loss.
+# These public anycast resolvers respond to ICMP and are stable reference points.
+- targets:
+    - 1.1.1.1
+  labels: { probe_kind: internet, hop: cloudflare }
+- targets:
+    - 8.8.8.8
+  labels: { probe_kind: internet, hop: google }
+- targets:
+    - 9.9.9.9
+  labels: { probe_kind: internet, hop: quad9 }

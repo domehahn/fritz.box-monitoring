@@ -1,0 +1,14 @@
+# ICMP probe targets: local network infrastructure (gateway, repeaters, powerline).
+# Edit this file to add your repeater / powerline IPs — Prometheus picks up
+# changes within ~30s (file_sd), no restart needed.
+#
+# `hop` is a friendly name shown on dashboards. Keep `probe_kind: infra`.
+- targets:
+    - 192.168.178.1
+  labels:
+    probe_kind: infra
+    hop: fritzbox
+# - targets: ["192.168.178.2"]
+#   labels: { probe_kind: infra, hop: "Repeater-OG" }
+# - targets: ["192.168.178.3"]
+#   labels: { probe_kind: infra, hop: "Powerline-Keller" }

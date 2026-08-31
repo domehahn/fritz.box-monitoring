@@ -52,6 +52,9 @@ config/prometheus/data/
 
 # Environment variables
 .env
+.env.*
+!.env.example
+!.env.production.example
 .env.local
 *.local
 

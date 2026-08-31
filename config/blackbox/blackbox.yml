@@ -1,0 +1,45 @@
+# Blackbox Exporter modules for home-network path probing.
+# Docs: https://github.com/prometheus/blackbox_exporter/blob/master/CONFIGURATION.md
+modules:
+  # ICMP echo for infrastructure and internet reachability targets.
+  icmp:
+    prober: icmp
+    timeout: 5s
+    icmp:
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+
+  # Tighter timeout for LAN hops (gateway / repeaters / powerline).
+  icmp_lan:
+    prober: icmp
+    timeout: 2s
+    icmp:
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+
+  # DNS A-record lookup. Resolver is chosen per scrape job (local vs external)
+  # via the __param_target relabel; query name is fixed and low-risk.
+  dns_a:
+    prober: dns
+    timeout: 5s
+    dns:
+      query_name: "example.com"
+      query_type: "A"
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+      validate_answer_rrs:
+        fail_if_not_matches_regexp:
+          - ".*"
+
+  # Plain HTTP/HTTPS reachability for captive-portal / connectivity-check style
+  # targets. Not a substitute for ICMP latency.
+  http_2xx:
+    prober: http
+    timeout: 5s
+    http:
+      valid_status_codes: []          # any 2xx
+      method: GET
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+      fail_if_ssl: false
+      fail_if_not_ssl: false

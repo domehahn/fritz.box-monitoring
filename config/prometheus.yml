@@ -13,3 +13,88 @@ scrape_configs:
       - targets: ['fritz-exporter:8000']
         labels:
           instance_type: 'fritz_exporter'
+
+  # ------------------------------------------------------------------
+  # Active path probing via Blackbox Exporter.
+  # Targets live in config/blackbox/targets/*.yml (file_sd, hot-reloaded).
+  # Each job rewrites __address__ to the blackbox exporter and passes the
+  # real probe target as ?target=; `instance` becomes the probe target.
+  # ------------------------------------------------------------------
+  - job_name: 'blackbox_exporter'
+    static_configs:
+      - targets: ['blackbox-exporter:9115']
+
+  # Alloy's own health — lets us see loki.write delivery / drops.
+  - job_name: 'alloy'
+    static_configs:
+      - targets: ['alloy:12345']
+
+  # Opt-in iperf3 LAN reference probe (compose profile: iperf). Target is DOWN
+  # when the profile is not enabled — that is expected.
+  - job_name: 'iperf_probe'
+    static_configs:
+      - targets: ['iperf-probe:9119']
+
+  - job_name: 'probe_icmp_infra'
+    scrape_interval: 15s
+    metrics_path: /probe
+    params:
+      module: [icmp_lan]
+    file_sd_configs:
+      - files: ['/etc/blackbox/targets/icmp_infra.yml']
+        refresh_interval: 30s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  - job_name: 'probe_icmp_internet'
+    scrape_interval: 15s
+    metrics_path: /probe
+    params:
+      module: [icmp]
+    file_sd_configs:
+      - files: ['/etc/blackbox/targets/icmp_internet.yml']
+        refresh_interval: 30s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  - job_name: 'probe_dns_local'
+    scrape_interval: 30s
+    metrics_path: /probe
+    params:
+      module: [dns_a]
+    file_sd_configs:
+      - files: ['/etc/blackbox/targets/dns_local.yml']
+        refresh_interval: 30s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  - job_name: 'probe_dns_external'
+    scrape_interval: 30s
+    metrics_path: /probe
+    params:
+      module: [dns_a]
+    file_sd_configs:
+      - files: ['/etc/blackbox/targets/dns_external.yml']
+        refresh_interval: 30s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115

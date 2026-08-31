@@ -1,0 +1,8 @@
+# DNS probe targets: external resolvers. Compare against dns_local to tell
+# whether slow resolution is the FRITZ!Box or upstream.
+- targets:
+    - 1.1.1.1
+  labels: { probe_kind: dns_external, resolver: cloudflare }
+- targets:
+    - 8.8.8.8
+  labels: { probe_kind: dns_external, resolver: google }

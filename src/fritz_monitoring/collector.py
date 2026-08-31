@@ -48,7 +48,10 @@ class CollectorService:
     """Background service that periodically collects snapshots from Fritz!Box."""
 
     def __init__(
-        self, fritz_settings: FritzSettings, interval_seconds: float = 30.0
+        self,
+        fritz_settings: FritzSettings,
+        interval_seconds: float = 30.0,
+        emit_events: bool = True,
     ) -> None:
         self.fritz_settings = fritz_settings
         self.interval_seconds = interval_seconds
@@ -62,11 +65,52 @@ class CollectorService:
         self._thread: Optional[threading.Thread] = None
         self.on_error_callback: Optional[Callable[[str], None]] = None
 
+        self._event_deriver = None
+        if emit_events:
+            from .events import EventDeriver
+
+            self._event_deriver = EventDeriver()
+
+        self._capabilities: Optional[object] = None
+
     def get_client(self) -> FritzClient:
         """Get or initialize FritzClient instance."""
         if self._client is None:
             self._client = FritzClient(self.fritz_settings)
         return self._client
+
+    def get_capabilities(self) -> Optional[object]:
+        """Latest CapabilityReport (None until the first probe)."""
+        with self._lock:
+            return self._capabilities
+
+    def _probe_capabilities_once(self, client: FritzClient) -> None:
+        """Probe the permission-gated FRITZ!Box features once and log a hint.
+
+        Delegates to fritz-avm-client's ``client.probe_capabilities()``; this
+        layer only keeps the result and emits one actionable warning.
+        """
+        if self._capabilities is not None:
+            return
+        try:
+            report = client.probe_capabilities()
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning(f"Capability probe failed: {exc}")
+            return
+        with self._lock:
+            self._capabilities = report
+        denied = getattr(report, "permission_denied", []) or []
+        if denied:
+            unlocks = getattr(report, "unlocks", {}) or {}
+            detail = "; ".join(f"'{f}' (unlocks {unlocks.get(f, '?')})" for f in denied)
+            logger.warning(
+                "FRITZ!Box is withholding {} feature(s) from the monitoring "
+                "account: {}. Grant the user the 'FRITZ!Box Einstellungen' "
+                "permission (System > FRITZ!Box-Benutzer). See "
+                "docs/fritz-permissions.md.",
+                len(denied),
+                detail,
+            )
 
     def get_snapshot(self) -> Optional[MonitoringSnapshot]:
         """Thread-safe retrieval of the latest snapshot."""
@@ -93,6 +137,7 @@ class CollectorService:
 
         try:
             client = self.get_client()
+            self._probe_capabilities_once(client)
 
             # WAN & DSL
             wan = client.get_wan_stats_typed()
@@ -151,6 +196,15 @@ class CollectorService:
                 f"Successfully collected Fritz!Box snapshot in {duration:.2f}s "
                 f"({len(snapshot.mesh_nodes)} nodes, {len(snapshot.devices)} devices)"
             )
+
+            # Derive structured events from the state transition. Never let an
+            # error here disrupt collection.
+            if self._event_deriver is not None:
+                try:
+                    self._event_deriver.process(snapshot)
+                except Exception as exc:  # pragma: no cover - defensive
+                    logger.warning(f"Event derivation failed: {exc}")
+
             return snapshot
 
         except FritzTimeoutError as exc:

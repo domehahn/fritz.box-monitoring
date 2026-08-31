@@ -42,31 +42,58 @@ discovery.docker "containers" {
   host = "unix:///var/run/docker.sock"
 }
 
-loki.source.docker "containers" {
-  host       = "unix:///var/run/docker.sock"
-  targets    = discovery.docker.containers.targets
-  forward_to = [loki.relabel.containers.receiver]
-}
-
-loki.relabel "containers" {
-  forward_to = [loki.write.local_loki.receiver]
+// Scope tailing to THIS compose project only (the host may run unrelated
+// stacks) and collapse the per-port target duplicates discovery.docker emits
+// down to one target per container. Also shapes the stream labels here so the
+// tailer starts with the final label set.
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
 
   rule {
-    action        = "replace"
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    regex         = "fritz-monitoring-.*"
+    action        = "keep"
+  }
+
+  rule {
     source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
     target_label  = "job"
   }
 
   rule {
-    action        = "replace"
     source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
     target_label  = "container"
   }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+}
+
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.containers.output
+  forward_to = [loki.write.local_loki.receiver]
 }
 
 // 3. Push Log Streams to Loki
 loki.write "local_loki" {
+  // WAL disabled: send synchronously so delivery errors surface in Alloy's
+  // logs instead of being buffered silently.
+  wal {
+    enabled = false
+  }
+
   endpoint {
-    url = "http://loki:3100/loki/api/v1/push"
+    url        = "http://loki:3100/loki/api/v1/push"
+    batch_wait = "1s"
+    tenant_id  = "fake"
+  }
+
+  external_labels = {
+    stack = "fritz-monitoring",
   }
 }

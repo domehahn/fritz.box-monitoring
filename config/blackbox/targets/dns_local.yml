@@ -1,0 +1,5 @@
+# DNS probe targets: the local resolver (FRITZ!Box). Measures LAN-side DNS health
+# so "network is fine but DNS is slow" is distinguishable.
+- targets:
+    - 192.168.178.1
+  labels: { probe_kind: dns_local, resolver: fritzbox }

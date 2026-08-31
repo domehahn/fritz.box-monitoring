@@ -70,3 +70,8 @@ def test_collector_service_collect_once():
 
         assert len(error_calls) == 1
         assert error_calls[0] == "timeout"
+
+
+# NOTE: the former WLAN-key / null-list workarounds moved upstream into
+# fritz-avm-client >= 0.4.0 (discovery._coerce_null_lists, real fritzconnection
+# key names) — see that repo's tests. The collector no longer patches the client.

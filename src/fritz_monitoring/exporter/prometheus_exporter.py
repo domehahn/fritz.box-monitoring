@@ -263,6 +263,15 @@ class FritzPrometheusExporter:
             registry=self.registry,
         )
 
+        # Permission-gated FRITZ!Box features (1 = available to the monitoring
+        # account, 0 = withheld — see docs/fritz-permissions.md).
+        self.capability_available = Gauge(
+            "fritz_capability_available",
+            "1 if the FRITZ!Box exposes this feature to the monitoring account",
+            ["feature"],
+            registry=self.registry,
+        )
+
     def render_snapshot(
         self,
         snapshot: Optional[MonitoringSnapshot],
@@ -375,11 +384,13 @@ class FritzPrometheusExporter:
                 )
 
         for node in snapshot.mesh_nodes:
-            node_type = (
-                "router"
-                if node.is_router
-                else ("powerline" if node.is_powerline else "repeater")
-            )
+            # Placeholder names the FRITZ!Box hands out to unconfigured /
+            # transient mesh entries would otherwise inflate "Problem nodes"
+            # and the state timeline with phantom offline nodes.
+            if node.is_placeholder:
+                continue
+
+            node_type = node.kind
             is_active = node.extra.get("active", True)
             model = node.extra.get("model", node.name)
             parent = node.parent_node or ""
@@ -403,11 +414,11 @@ class FritzPrometheusExporter:
 
             if is_active:
                 direct_devices = devices_by_node_name.get(node.name, 0)
-                if node.is_powerline:
+                if node.kind == "powerline":
                     self.powerline_connected_devices.labels(node.name, node.mac).set(
                         direct_devices
                     )
-                elif node.is_repeater and not node.is_router:
+                elif node.kind == "repeater":
                     self.repeater_connected_devices.labels(node.name, node.mac).set(
                         direct_devices
                     )
@@ -433,9 +444,9 @@ class FritzPrometheusExporter:
             is_rep = "false"
             is_pwl = "false"
             if connected_obj:
-                if connected_obj.is_powerline:
+                if connected_obj.kind == "powerline":
                     is_pwl = "true"
-                elif connected_obj.is_repeater and not connected_obj.is_router:
+                elif connected_obj.kind == "repeater":
                     is_rep = "true"
 
             dev_args = (
@@ -476,4 +487,21 @@ class FritzPrometheusExporter:
             snapshot = self.collector_service.get_snapshot()
             state = self.collector_service.get_state()
             self.render_snapshot(snapshot, state)
+            self._render_capabilities()
         return generate_latest(self.registry)
+
+    def _render_capabilities(self) -> None:
+        """Expose fritz_capability_available{feature} from the collector probe."""
+        get_caps = getattr(self.collector_service, "get_capabilities", None)
+        if get_caps is None:
+            return
+        report = get_caps()
+        # fritz-avm-client PermissionReport.as_flags() -> {feature: 1|0}
+        flags = getattr(report, "as_flags", None) or getattr(
+            report, "as_metric_rows", None
+        )
+        if flags is None:
+            return
+        self.capability_available.clear()
+        for feature, value in flags().items():
+            self.capability_available.labels(feature=feature).set(value)

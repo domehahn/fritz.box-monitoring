@@ -1,0 +1,96 @@
+# Recording rules for the Home Network NOC dashboards.
+#
+# UNIT NOTE (verified against fritz-avm-client 0.3.0 -> fritzconnection FritzStatus):
+#   fritz_router_current_bytes_received_rate / _sent_rate  -> BYTES per second
+#   fritz_router_max_byte_rate_down / _up                  -> BYTES per second
+#   fritz_router_bytes_received_total / _sent_total        -> BYTES, but exposed as
+#       a GAUGE that resets on WAN reconnect/reboot -> do NOT use rate() on it.
+# Throughput is therefore taken from the *_rate gauges directly (already a rate),
+# never derived from the *_total gauges. Display side multiplies by 8 for bit/s.
+groups:
+  - name: fritz_wan
+    interval: 30s
+    rules:
+      - record: fritz:wan_download_throughput_bytes:rate
+        expr: fritz_router_current_bytes_received_rate
+
+      - record: fritz:wan_upload_throughput_bytes:rate
+        expr: fritz_router_current_bytes_sent_rate
+
+      # Independent down/up utilisation (0..1). Denominator guarded so a missing
+      # or zero capacity sample yields no series instead of +Inf.
+      - record: fritz:wan_download_utilization:ratio
+        expr: >-
+          fritz_router_current_bytes_received_rate
+          / (fritz_router_max_byte_rate_down > 0)
+
+      - record: fritz:wan_upload_utilization:ratio
+        expr: >-
+          fritz_router_current_bytes_sent_rate
+          / (fritz_router_max_byte_rate_up > 0)
+
+  - name: fritz_stability
+    interval: 60s
+    rules:
+      # changes() on the 0/1 up gauge counts every connect AND disconnect edge,
+      # i.e. one full flap == 2. Series goes stale (not ->0) if a device leaves
+      # the host list entirely; transitions are only counted while present.
+      - record: fritz:device_connection_changes:1h
+        expr: changes(fritz_device_up[1h])
+
+      - record: fritz:device_connection_changes:24h
+        expr: changes(fritz_device_up[24h])
+
+      - record: fritz:node_connection_changes:24h
+        expr: changes(fritz_node_up[24h])
+
+      - record: fritz:mesh_nodes_healthy:count
+        expr: count(fritz_node_up == 1) or vector(0)
+
+      - record: fritz:mesh_nodes_total:count
+        expr: count(fritz_node_up) or vector(0)
+
+  - name: fritz_mesh_backhaul
+    interval: 60s
+    rules:
+      # Per-node backhaul baseline = its own best link rate over 24h. A drop of
+      # the current rate well below this baseline is the "mesh link degraded vs
+      # normal" signal. kbit/s.
+      - record: fritz:node_link_rx_kbps:max24h
+        expr: max_over_time(fritz_node_link_rx_kbps[24h])
+
+      - record: fritz:node_link_tx_kbps:max24h
+        expr: max_over_time(fritz_node_link_tx_kbps[24h])
+
+      # Backhaul health 0..1: current link rate vs the node's own 24h best.
+      # 1.0 = at baseline, lower = degraded. Only for nodes with a baseline > 0
+      # (the router reports 0 and is excluded). rx and tx share {name,mac,type},
+      # so the division is element-wise; the two are unioned and the min wins.
+      - record: fritz:node_backhaul_health:ratio
+        expr: |
+          min without (dir) (
+            label_replace(
+              fritz_node_link_rx_kbps / (fritz:node_link_rx_kbps:max24h > 0),
+              "dir", "rx", "", "")
+            or
+            label_replace(
+              fritz_node_link_tx_kbps / (fritz:node_link_tx_kbps:max24h > 0),
+              "dir", "tx", "", "")
+          )
+
+      # Health verdict as a numeric code. Inputs limited to what is available
+      # today (no per-client Wi-Fi data - see docs/fritz-metrics.md). The final
+      # HEALTHY/DEGRADED/CRITICAL/OFFLINE label + colour is applied in the
+      # Grafana table via value mappings.
+      #   4 OFFLINE   node down
+      #   1..3 online: 1 HEALTHY, 2 DEGRADED (>=3 flaps/24h), 3 CRITICAL (>=8)
+      - record: fritz:node_health:code
+        expr: |
+          4 * (fritz_node_up == bool 0)
+          +
+          (fritz_node_up == bool 1) * clamp_max(
+            1
+            + (fritz:node_connection_changes:24h >= bool 3)
+            + (fritz:node_connection_changes:24h >= bool 8),
+            3
+          )

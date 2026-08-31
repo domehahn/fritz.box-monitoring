@@ -344,13 +344,8 @@ def api_devices() -> Any:
 
 
 def _node_type(node: Any) -> str:
-    if getattr(node, "is_router", False):
-        return "router"
-    if getattr(node, "is_powerline", False):
-        return "powerline"
-    if getattr(node, "is_repeater", False):
-        return "repeater"
-    return "unknown"
+    # fritz-avm-client Node.kind ("router"|"repeater"|"powerline"|"unknown").
+    return str(getattr(node, "kind", "") or "unknown")
 
 
 def _build_topology(client: FritzClient) -> Dict[str, Any]:

@@ -663,7 +663,7 @@ dotenv = ["python-dotenv"]
 
 [[package]]
 name = "fritz-avm-client"
-version = "0.3.0"
+version = "0.4.0"
 description = "Extended Python client for AVM Fritz!Box routers with mesh topology, CPU temperatures, and advanced metrics"
 optional = false
 python-versions = ">=3.10"
@@ -683,8 +683,8 @@ dev = ["build (>=1.0.0)", "mypy (>=1.5.0)", "pip-audit (>=2.6.0)", "pytest (>=7.
 [package.source]
 type = "git"
 url = "https://github.com/domehahn/fritz-avm-client.git"
-reference = "v0.3.0"
-resolved_reference = "48bb19f39851167a84bffd8ba58d9501683dcabb"
+reference = "feat/mesh-model-and-capabilities"
+resolved_reference = "895be777928b9bf77c087643216b64e531d6d04b"
 
 [[package]]
 name = "fritzconnection"
@@ -2645,4 +2645,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<4.0"
-content-hash = "e99367ab6138f6f827c6e8c4bcd1fe5528ced3d4d166fac1f4f3ec0553d6938f"
+content-hash = "a5ba5a4e85448b9e89033b4e4ae89d4d042fc6e4207fe94dd5c13ba6f5110753"
