@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Optional
 from loguru import logger
 from prometheus_client import CollectorRegistry, Gauge, generate_latest
 
-from ..common import env_float, env_str
+from ..common import env_float, env_str, read_secret
 
 INTERVAL_FLOOR_S = 300.0
 
@@ -49,7 +49,8 @@ class BlinkConfig:
     def from_env(cls) -> "BlinkConfig":
         return cls(
             username=env_str("BLINK_USERNAME"),
-            password=env_str("BLINK_PASSWORD"),
+            # literal password, or a path to a file holding it (Docker secret)
+            password=read_secret(env_str("BLINK_PASSWORD")),
             credentials_file=env_str("BLINK_CREDENTIALS_FILE", "/data/blink.json"),
             twofa_key=env_str("BLINK_2FA_KEY"),
             interval_seconds=env_float(
@@ -200,7 +201,10 @@ class BlinkExporter:
 
 async def _refresh(cfg: BlinkConfig) -> BlinkSnapshot:
     from aiohttp import ClientSession
-    from blinkpy.auth import Auth  # type: ignore[import-untyped]
+    from blinkpy.auth import (  # type: ignore[import-untyped]
+        Auth,
+        BlinkTwoFARequiredError,
+    )
     from blinkpy.blinkpy import Blink  # type: ignore[import-untyped]
     from blinkpy.helpers.util import json_load  # type: ignore[import-untyped]
 
@@ -221,10 +225,28 @@ async def _refresh(cfg: BlinkConfig) -> BlinkSnapshot:
                 no_prompt=True,
                 session=session,
             )
-        await blink.start()
-        if cfg.twofa_key and not blink.available:
-            await blink.auth.send_auth_key(blink, cfg.twofa_key)
-            await blink.setup_post_verify()
+        try:
+            await blink.start()
+        except BlinkTwoFARequiredError:
+            if not cfg.twofa_key:
+                raise RuntimeError(
+                    "Blink requires a 2FA code — set BLINK_2FA_KEY once with the "
+                    "code Amazon sent, then restart. A token is cached afterwards."
+                )
+            # complete_2fa_login() (blinkpy >= 0.24) or the older send_auth_key()
+            complete = getattr(blink.auth, "complete_2fa_login", None)
+            if complete is not None:
+                if not await complete(cfg.twofa_key):
+                    raise RuntimeError(
+                        "Blink 2FA verification failed (bad/expired code)"
+                    )
+                # the token is valid now; a second start() runs the full setup
+                # (URLs, last_refresh, homescreen) that the raising start() skipped
+                if not await blink.start():
+                    raise RuntimeError("Blink setup failed after 2FA verification")
+            else:  # pragma: no cover - legacy blinkpy
+                await blink.auth.send_auth_key(blink, cfg.twofa_key)
+                await blink.setup_post_verify()
         await blink.refresh(force=True)
         if cfg.credentials_file:
             try:
