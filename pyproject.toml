@@ -3,7 +3,10 @@ name = "fritz-monitoring"
 version = "1.0.0"
 description = "Fritz!Box monitoring stack with Prometheus, Grafana, Loki, and Alloy"
 authors = ["Dominik Hahn"]
-packages = [{include = "fritz_monitoring", from = "src"}]
+packages = [
+    {include = "fritz_monitoring", from = "src"},
+    {include = "home_iot", from = "src"},
+]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<4.0"
@@ -21,6 +24,16 @@ aiohttp = ">=3.14.3"
 # >=2.33.0: PYSEC-2026-2275 (extract_zipped_paths temp-file reuse)
 requests = ">=2.33.0"
 pyyaml = ">=6.0"
+
+[tool.poetry.group.iot]
+# Smart-home exporters (home_iot.bosch / home_iot.blink). Optional: the Hue and
+# FRITZ!DECT exporters need nothing beyond the core deps. Install with
+# `poetry install --with iot`; the home-iot Docker image always includes it.
+optional = true
+
+[tool.poetry.group.iot.dependencies]
+boschshcpy = ">=0.2.75"
+blinkpy = ">=0.22.6"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.0"

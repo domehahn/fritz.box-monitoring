@@ -1,0 +1,36 @@
+# Smart-home exporters (compose profile: smarthome).
+# One image, four entrypoints — pick with the compose `command:`:
+#   python -m home_iot.hue        (:9120)
+#   python -m home_iot.bosch      (:9121)
+#   python -m home_iot.blink      (:9122)
+#   python -m home_iot.fritzdect  (:9123)
+FROM python:3.11-slim AS builder
+
+WORKDIR /build
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir poetry poetry-plugin-export
+COPY pyproject.toml poetry.lock ./
+RUN poetry export -f requirements.txt --output requirements.txt --without-hashes --with iot
+
+FROM python:3.11-slim AS runtime
+
+WORKDIR /app
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app/src \
+    HOME=/home/appuser
+
+RUN groupadd -g 10001 appgroup && \
+    useradd -u 10001 -g appgroup -m -d /home/appuser -s /bin/sh appuser
+
+COPY --from=builder /build/requirements.txt /tmp/requirements.txt
+RUN apt-get update && apt-get install -y --no-install-recommends git && \
+    pip install --no-cache-dir -r /tmp/requirements.txt && \
+    apt-get purge -y --auto-remove git && \
+    rm -rf /var/lib/apt/lists/* /tmp/*
+
+COPY src /app/src
+USER appuser:appgroup
+
+# Default entrypoint; every compose service overrides `command:`.
+CMD ["python", "-m", "home_iot.hue"]

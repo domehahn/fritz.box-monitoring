@@ -288,6 +288,154 @@ services:
       timeout: 5s
       retries: 3
 
+  # --- Smart-home exporters (opt-in) --------------------------------------
+  # Start all four:  docker compose --profile smarthome up -d
+  # Start just one:  docker compose --profile hue up -d   (bosch|blink|fritzdect)
+  # Each serves /metrics on its own port; Prometheus scrapes them over `backend`.
+  # They stay healthy with no credentials (serving *_configured=0) so it is safe
+  # to enable the profile before pairing every hub.
+
+  hue-exporter:
+    profiles: [smarthome, hue]
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.hue"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - HUE_BRIDGE_HOST=${HUE_BRIDGE_HOST:-}
+      # literal key, or a path to a file holding it (e.g. /secrets/hue_app_key.txt)
+      - HUE_APP_KEY=${HUE_APP_KEY:-}
+      - HUE_VERIFY_TLS=${HUE_VERIFY_TLS:-false}
+      - HUE_CA_FILE=${HUE_CA_FILE:-}
+      - HUE_INTERVAL_SECONDS=${HUE_INTERVAL_SECONDS:-60}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./secrets:/secrets:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 128M
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9120/healthz')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  bosch-exporter:
+    profiles: [smarthome, bosch]
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.bosch"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - BOSCH_SHC_HOST=${BOSCH_SHC_HOST:-}
+      - BOSCH_SHC_CERT_FILE=${BOSCH_SHC_CERT_FILE:-/secrets/bosch-shc-cert.pem}
+      - BOSCH_SHC_KEY_FILE=${BOSCH_SHC_KEY_FILE:-/secrets/bosch-shc-key.pem}
+      - BOSCH_INTERVAL_SECONDS=${BOSCH_INTERVAL_SECONDS:-60}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./secrets:/secrets:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 192M
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9121/healthz')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  blink-exporter:
+    profiles: [smarthome, blink]
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.blink"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - BLINK_USERNAME=${BLINK_USERNAME:-}
+      - BLINK_PASSWORD=${BLINK_PASSWORD:-}
+      - BLINK_2FA_KEY=${BLINK_2FA_KEY:-}
+      - BLINK_CREDENTIALS_FILE=${BLINK_CREDENTIALS_FILE:-/data/blink.json}
+      - BLINK_INTERVAL_SECONDS=${BLINK_INTERVAL_SECONDS:-600}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - home_iot_data:/data
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 192M
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9122/healthz')\""]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+
+  fritzdect-exporter:
+    profiles: [smarthome, fritzdect]
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.fritzdect"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - FRITZ_HOST=${FRITZ_HOST:-192.168.178.1}
+      - FRITZ_PORT=${FRITZ_PORT:-49000}
+      - FRITZ_USERNAME=${FRITZ_MONITOR_USERNAME:-}
+      - FRITZ_PASSWORD_FILE=/run/secrets/fritz_monitor_password
+      - FRITZ_USE_TLS=${FRITZ_USE_TLS:-false}
+      - FRITZDECT_INTERVAL_SECONDS=${FRITZDECT_INTERVAL_SECONDS:-60}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    secrets:
+      - fritz_monitor_password
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 128M
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9123/healthz')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
 networks:
   backend:
     internal: true
@@ -300,6 +448,7 @@ volumes:
   prometheus_data:
   loki_data:
   grafana_data:
+  home_iot_data:   # Blink cloud token cache (home_iot.blink)
 
 secrets:
   fritz_monitor_password:
