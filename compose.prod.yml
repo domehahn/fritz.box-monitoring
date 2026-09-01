@@ -523,6 +523,44 @@ services:
       timeout: 5s
       retries: 3
 
+  # --- Per-device bandwidth via the FRITZ!Box packet capture (opt-in) ---
+  # Streams a live pcap of the LAN bridge and counts bytes per local IP.
+  # LOADS THE FRITZ!Box CPU — keep sessions short / set LANTAP_MAX_MINUTES.
+  lantap-exporter:
+    profiles: [lantap]
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.lantap"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - FRITZ_HOST=${FRITZ_HOST:-192.168.178.1}
+      - FRITZ_USERNAME=${FRITZ_ADMIN_USERNAME:-${FRITZ_MONITOR_USERNAME:-}}
+      - FRITZ_PASSWORD_FILE=/run/secrets/fritz_admin_password
+      - LANTAP_IFACE=${LANTAP_IFACE:-1-lan}
+      - LANTAP_SNAPLEN=${LANTAP_SNAPLEN:-128}
+      - LANTAP_SUBNETS=${LANTAP_SUBNETS:-192.168.178.0/24}
+      - LANTAP_MAX_MINUTES=${LANTAP_MAX_MINUTES:-0}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    secrets:
+      - fritz_admin_password
+    deploy:
+      resources:
+        limits: { cpus: '0.75', memory: 160M }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9129/healthz')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
   # --- Energy price + optional meter (P3) --------------------------
   # aWATTar spot price works with zero config (DE/AT). Add a Tibber token or a
   # Shelly EM IP for real consumption. Always on; degrades to energy_up=0.

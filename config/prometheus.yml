@@ -183,6 +183,12 @@ scrape_configs:
     static_configs:
       - targets: ['energy-exporter:9128']
 
+  # Per-device bandwidth (compose --profile lantap). DOWN unless enabled.
+  - job_name: 'lantap'
+    scrape_interval: 15s
+    static_configs:
+      - targets: ['lantap-exporter:9129']
+
   # --- Weather (P3) / Speedtest (P4). DOWN unless their profile is enabled. ---
   - job_name: 'weather_exporter'
     scrape_interval: 300s
