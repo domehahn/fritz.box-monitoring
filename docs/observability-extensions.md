@@ -199,3 +199,34 @@ Alerts: `RoomHeatingWhileAway` (valve > 30 % ∧ away 3 h — warning),
 `PlugOnWhileAway` (info; ignore for fridges/servers), `MotionWhileEmpty` (motion
 with no household phone on the network — smarter than the raw intrusion state).
 A "Presence" row is added to the **Home Climate & Energy** dashboard.
+
+---
+
+## Per-device bandwidth (opt-in) — `home_iot.lantap`
+
+TR-064 exposes no per-host throughput. This exporter opens the FRITZ!Box's own
+continuous packet capture (`/cgi-bin/capture_notimeout`, UI session via PBKDF2
+login), reads the pcap stream (the "modified" `0xa1b2cd34` variant FRITZ!OS
+emits), and buckets `orig_len` by the local source / destination IP:
+
+* `lantap_host_sent_bytes_total{ip}` / `_received_bytes_total{ip}` (+ `_packets_`)
+* `lantap_host_info{ip,name,mac}` — IP → name from the FRITZ!Box host list
+
+`rate(...) * 8` on the dashboard = live bit/s. Dashboard **Per-Device
+Bandwidth** has top-talker charts, a per-device table (Mbit/s now + GB today),
+and a `$device` drill-down.
+
+**Caveats**
+* **CPU load on the FRITZ!Box** — AVM does not support 24/7 capture. Small
+  `LANTAP_SNAPLEN` (128) keeps the stream light (byte counts use the real
+  packet length, not the captured bytes). Set `LANTAP_MAX_MINUTES` for an
+  automatic stop.
+* Needs the monitoring user's **"FRITZ!Box Settings"** permission (UI login).
+* LAN-bridge capture (`1-lan`) sees LAN-local traffic too; use `LANTAP_IFACE=3-17`
+  for internet-only per device.
+
+```bash
+docker compose -f compose.prod.yml --profile lantap up -d --build
+# ... watch the dashboard ...
+docker compose -f compose.prod.yml --profile lantap stop lantap-exporter
+```

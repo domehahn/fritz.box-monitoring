@@ -57,7 +57,7 @@ jobs:
           echo "test_password" > secrets/device_manager_admin_password.txt
           echo "test_secret_key" > secrets/device_manager_secret_key.txt
           docker compose -f compose.prod.yml config
-          docker compose -f compose.prod.yml --profile admin --profile iperf --profile smarthome --profile weather --profile speedtest config
+          docker compose -f compose.prod.yml --profile admin --profile iperf --profile smarthome --profile weather --profile speedtest --profile lantap config
 
       - name: Validate Prometheus config & rules
         run: |

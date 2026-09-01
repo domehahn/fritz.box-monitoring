@@ -710,3 +710,108 @@ def test_energy_exporter_render():
     assert 'energy_price_eur_per_kwh{source="awattar"} 0.28' in body
     assert 'energy_power_watts{source="shelly"} 640.0' in body
     assert 'energy_phase_power_watts{phase="A",source="shelly"} 640.0' in body
+
+
+# --------------------------------------------------------------------------- #
+# lantap (FRITZ!Box packet-capture per-device accounting)
+# --------------------------------------------------------------------------- #
+def _eth_ipv4(src: str, dst: str, vlan: bool = False) -> bytes:
+    import ipaddress
+
+    mac = b"\x00\x11\x22\x33\x44\x55" + b"\x66\x77\x88\x99\xaa\xbb"
+    if vlan:
+        l2 = mac + b"\x81\x00" + b"\x00\x01" + b"\x08\x00"
+    else:
+        l2 = mac + b"\x08\x00"
+    ip = (
+        b"\x45\x00\x00\x28"
+        + b"\x00\x00\x40\x00\x40\x06\x00\x00"
+        + ipaddress.IPv4Address(src).packed
+        + ipaddress.IPv4Address(dst).packed
+    )
+    return l2 + ip + b"\x00" * 8
+
+
+def test_lantap_frame_endpoints_and_classify():
+    import ipaddress
+    from home_iot.lantap.pcap import classify, frame_endpoints
+
+    nets = [ipaddress.ip_network("192.168.178.0/24")]
+
+    up = _eth_ipv4("192.168.178.42", "1.2.3.4")
+    assert frame_endpoints(up) == ("192.168.178.42", "1.2.3.4")
+    assert classify(up, 1500, nets) == [("192.168.178.42", "tx", 1500)]
+
+    down = _eth_ipv4("1.2.3.4", "192.168.178.42")
+    assert classify(down, 800, nets) == [("192.168.178.42", "rx", 800)]
+
+    lan2lan = _eth_ipv4("192.168.178.10", "192.168.178.20")
+    got = classify(lan2lan, 100, nets)
+    assert ("192.168.178.10", "tx", 100) in got and ("192.168.178.20", "rx", 100) in got
+
+    vlan = _eth_ipv4("192.168.178.42", "8.8.8.8", vlan=True)
+    assert frame_endpoints(vlan) == ("192.168.178.42", "8.8.8.8")
+
+    assert frame_endpoints(b"\x00" * 14) == ("", "")  # non-IP ethertype 0
+
+
+def test_lantap_pcap_stream_reassembles_records():
+    import struct
+    from home_iot.lantap.pcap import PcapStream
+
+    f1 = _eth_ipv4("192.168.178.7", "9.9.9.9")
+    f2 = _eth_ipv4("9.9.9.9", "192.168.178.7")
+    gh_classic = struct.pack(">IHHiIII", 0xA1B2C3D4, 2, 4, 0, 0, 262144, 1)
+    gh_mod = struct.pack(">IHHiIII", 0xA1B2CD34, 2, 4, 0, 0, 262144, 1)
+
+    def classic(f, orig):
+        return struct.pack(">IIII", 1, 0, len(f), orig) + f
+
+    def modified(f, orig):  # +8: ifindex, protocol, pkt_type, pad
+        return struct.pack(">IIIIIHBB", 1, 0, len(f), orig, 2, 1, 0, 0) + f
+
+    for gh, mk in ((gh_classic, classic), (gh_mod, modified)):
+        blob = gh + mk(f1, 1400) + mk(f2, 600)
+        st = PcapStream()
+        out = []
+        for i in range(0, len(blob), 7):  # awkward slices exercise buffering
+            out.extend(st.feed(blob[i : i + 7]))
+        assert [o[0] for o in out] == [1400, 600]
+        assert out[0][1] == f1
+
+
+def test_lantap_exporter_counters():
+    from home_iot.lantap.exporter import LanTapExporter
+
+    exp = LanTapExporter()
+    exp.add("192.168.178.42", "tx", 1500)
+    exp.add("192.168.178.42", "rx", 4000)
+    exp.add("192.168.178.42", "rx", 4000)
+    exp.set_names({"192.168.178.42": ("Gaming-PC", "aa:bb:cc:dd:ee:ff")})
+    body = exp.render().decode()
+    assert 'lantap_host_sent_bytes_total{ip="192.168.178.42"} 1500.0' in body
+    assert 'lantap_host_received_bytes_total{ip="192.168.178.42"} 8000.0' in body
+    assert 'lantap_host_received_packets_total{ip="192.168.178.42"} 2.0' in body
+    assert (
+        'lantap_host_info{ip="192.168.178.42",mac="aa:bb:cc:dd:ee:ff",name="Gaming-PC"} 1.0'
+        in body
+    )
+
+
+def test_lantap_login_response_pbkdf2():
+    from home_iot.lantap.login import _response
+
+    # deterministic PBKDF2 vector
+    r = _response("2$3$00$3$00", "secret")
+    assert r.startswith("00$") and len(r.split("$")[1]) == 64
+
+
+def test_lantap_config_subnets():
+    from home_iot.lantap.exporter import LanTapConfig
+
+    cfg = LanTapConfig(
+        host="h", username="u", password="p", subnets="192.168.178.0/24, 10.0.0.0/8"
+    )
+    nets = cfg.nets
+    assert len(nets) == 2
+    assert cfg.configured
