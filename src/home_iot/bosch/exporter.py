@@ -209,7 +209,9 @@ def read_devices(session: Any) -> BoschSnapshot:
             arming = str(getattr(isys, "arming_state", "")).upper()
             alarm = str(getattr(isys, "alarm_state", "")).upper()
             snap.intrusion_armed = 0 if (not arming or "DISARM" in arming) else 1
-            snap.intrusion_alarm = 1 if ("ALARM_ON" in alarm or "TRIGGER" in alarm) else 0
+            snap.intrusion_alarm = (
+                1 if ("ALARM_ON" in alarm or "TRIGGER" in alarm) else 0
+            )
             snap.intrusion_available = (
                 1 if getattr(isys, "system_availability", True) else 0
             )

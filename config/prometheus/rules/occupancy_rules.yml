@@ -1,0 +1,47 @@
+groups:
+  - name: occupancy_recording_rules
+    interval: 60s
+    rules:
+      # People-carried devices seen on the FRITZ!Box network. TUNE the regex to
+      # your household's phone / watch names (Heimnetz > Netzwerk).
+      - record: home:people_devices:count
+        expr: >
+          count(fritz_device_up{name=~"(?i).*(iphone|s2[0-9]|pixel|galaxy|handy|oneplus|watch).*"} == 1)
+          or vector(0)
+
+      # Any motion from a Blink camera in the last 15 min.
+      - record: home:motion_recent:bool
+        expr: clamp_max((max(max_over_time(blink_camera_motion_detected[15m])) or vector(0)), 1)
+
+      # Occupied if a phone is on the network OR there was recent motion.
+      - record: home:occupied:bool
+        expr: clamp_max(home:people_devices:count + home:motion_recent:bool, 1)
+
+  - name: occupancy_alerts
+    rules:
+      - alert: RoomHeatingWhileAway
+        expr: (bosch_device_valve_percent > 30) and on() (home:occupied:bool == 0)
+        for: 3h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Radiator running in {{ $labels.room }} while nobody is home"
+          description: "Valve at {{ $value | printf \"%.0f\" }} % and no phone / motion for 3h — set back the heating?"
+
+      - alert: PlugOnWhileAway
+        expr: (bosch_device_switch_on == 1) and on() (home:occupied:bool == 0)
+        for: 3h
+        labels:
+          severity: info
+        annotations:
+          summary: "Plug {{ $labels.device }} on while nobody is home (3h)"
+          description: "Ignore for fridges / servers; useful for irons, chargers, TVs."
+
+      - alert: MotionWhileEmpty
+        expr: home:motion_recent:bool == 1 and home:people_devices:count == 0
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: "Motion detected while no household phone is on the network"
+          description: "Could be a guest, a pet, a package — or worth a look at the cameras."

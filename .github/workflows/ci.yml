@@ -73,7 +73,9 @@ jobs:
                         /config/prometheus/rules/climate_rules.yml \
                         /config/prometheus/rules/climate_alerts.yml \
                         /config/prometheus/rules/host_alerts.yml \
-                        /config/prometheus/rules/http_probe_rules.yml
+                        /config/prometheus/rules/http_probe_rules.yml \
+                        /config/prometheus/rules/energy_rules.yml \
+                        /config/prometheus/rules/occupancy_rules.yml
 
       - name: Validate Alertmanager config
         run: |
@@ -95,7 +97,7 @@ jobs:
         run: |
           python3 - <<'EOF'
           import json, glob, sys, collections
-          ALLOWED_DS = {"prometheus", "loki", "-- Grafana --", "-- Mixed --", None}
+          ALLOWED_DS = {"prometheus", "loki", "victoriametrics", "-- Grafana --", "-- Mixed --", None}
           uids, problems = collections.Counter(), []
           for f in sorted(glob.glob("config/grafana/provisioning/dashboards_files/*.json")):
               d = json.load(open(f))

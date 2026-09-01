@@ -134,3 +134,68 @@ For a private topic use your own ntfy server: `NTFY_URL=https://ntfy.example.com
 
 Alertmanager UI is on `backend` only; reach it with `docker exec ... wget` or add a port mapping if you want the web view.
 
+
+---
+
+## P2 · Log-based alerts (Loki ruler)
+
+Loki's built-in ruler evaluates LogQL and pushes to the **same Alertmanager**
+the Prometheus rules use. Rules: `config/loki/rules/fake/log_alerts.yml`
+(`fake` = the tenant Alloy writes as).
+
+* `FritzBoxFailedLogins` — > 3 `Anmeldung … fehlgeschlagen/abgewiesen` in 15 min
+  (router-UI / MyFRITZ brute force).
+* `GrafanaAuthFailures` — > 5 failed Grafana logins / 15 min.
+* `ContainerStackTrace` — any Python `Traceback (most recent call last)` in the
+  stack logs.
+* `AlloyDeliveryErrors` — Alloy `level=error` (logs may be dropping).
+* `HighLogErrorRate` — > 50 error lines / 10 min across the stack (info).
+
+Check the ruler:
+`docker exec …-loki-1 wget -qO- localhost:3100/loki/api/v1/rules`
+
+## P3 · Electricity price + consumption
+
+`home_iot.energy` (:9128, always on). Price source, best first:
+
+1. **Tibber** (`TIBBER_TOKEN` from developer.tibber.com) — real consumer price,
+   `level`, today/tomorrow arrays, and last completed hour's kWh + €.
+2. **aWATTar** (`ENERGY_MARKET=awattar_de|awattar_at`, no key) — hourly spot
+   price; a rough consumer price is `spot × ENERGY_VAT + ENERGY_SURCHARGE_CT_KWH`.
+
+Optional meter: **Shelly EM / 3EM / Pro 3EM** at `SHELLY_HOST` (Gen1 `/status`
+and Gen2 `/rpc/Shelly.GetStatus` both handled) → live `energy_power_watts`,
+per-phase, cumulative import/feed-in.
+
+Metrics: `energy_price_eur_per_kwh`, `energy_spot_price_eur_per_kwh`,
+`energy_price_level` (0–4), `energy_price_rank_today` (0 = cheapest hour),
+`energy_price_min_next12h_eur_per_kwh`, `energy_power_watts`,
+`energy_phase_power_watts`, `energy_import/export_watt_hours_total`,
+`energy_last_hour_kwh` / `_cost_eur`.
+
+Recording rules (`energy_rules.yml`): `home:known_load:watts` (Bosch plugs +
+meter), `home:known_load_cost:eur_per_hour`. Alerts: `ElectricityExpensiveNow`
+(rank > 0.85 → hold big loads), `ElectricityVeryCheapNow` (rank < 0.12 → good
+time), `EnergyExporterDown`. Dashboard **Electricity Price & Consumption**.
+
+## P4 · Long-term metrics (VictoriaMetrics)
+
+`victoriametrics` single-node (always on). Prometheus `remote_write`s every
+sample there; VM compresses ~7× and keeps `VM_RETENTION` months (default 24).
+Grafana has it as a second Prometheus-type datasource **VictoriaMetrics**
+(`uid: victoriametrics`) — switch any panel's datasource to it for history
+beyond the local Prometheus window (`PROMETHEUS_RETENTION_TIME`, still 30 d).
+
+## P5 · Occupancy (derived)
+
+Recording rules only — no new data source. `occupancy_rules.yml`:
+
+* `home:people_devices:count` — `fritz_device_up` for names matching a phone /
+  watch regex (**tune it** to your household).
+* `home:motion_recent:bool` — any `blink_camera_motion_detected` in 15 min.
+* `home:occupied:bool` — phone present **or** recent motion.
+
+Alerts: `RoomHeatingWhileAway` (valve > 30 % ∧ away 3 h — warning),
+`PlugOnWhileAway` (info; ignore for fridges/servers), `MotionWhileEmpty` (motion
+with no household phone on the network — smarter than the raw intrusion state).
+A "Presence" row is added to the **Home Climate & Energy** dashboard.

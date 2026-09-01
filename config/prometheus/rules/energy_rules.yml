@@ -1,0 +1,40 @@
+groups:
+  - name: energy_recording_rules
+    interval: 60s
+    rules:
+      # Power we can actually see (Bosch metering plugs + a whole-house Shelly
+      # if configured). Not total household load unless a house meter is wired.
+      - record: home:known_load:watts
+        expr: (sum(bosch_device_power_watts) or vector(0)) + (sum(energy_power_watts) or vector(0))
+
+      # Running cost of that visible load at the current price.
+      - record: home:known_load_cost:eur_per_hour
+        expr: home:known_load:watts / 1000 * scalar(max(energy_price_eur_per_kwh))
+
+  - name: energy_alerts
+    rules:
+      - alert: ElectricityExpensiveNow
+        expr: energy_price_rank_today > 0.85
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "Electricity is in the priciest band today ({{ $value | printf \"%.0f%%\" }} of range)"
+          description: "Hold off on dishwasher / dryer / EV charging if you can."
+
+      - alert: ElectricityVeryCheapNow
+        expr: energy_price_rank_today >= 0 and energy_price_rank_today < 0.12
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "Electricity is near today's cheapest — good time for big loads"
+          description: "Current price is at the low end of the daily range (rank {{ $value | printf \"%.2f\" }})."
+
+      - alert: EnergyExporterDown
+        expr: energy_up == 0
+        for: 1h
+        labels:
+          severity: info
+        annotations:
+          summary: "energy-exporter has had no usable price for 1h"
