@@ -78,6 +78,34 @@ services:
       fritz-exporter:
         condition: service_healthy
 
+  # P4 — long-term metrics store. Prometheus remote-writes here; Grafana has it
+  # as a second Prometheus-type datasource. ~7x smaller on disk than Prometheus.
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:v1.102.1
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+    volumes:
+      - victoriametrics_data:/victoria-metrics-data
+    command:
+      - '--retentionPeriod=${VM_RETENTION:-24}'
+      - '--storageDataPath=/victoria-metrics-data'
+      - '--selfScrapeInterval=30s'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.75'
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:8428/health | grep -q OK"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
   blackbox-exporter:
     image: quay.io/prometheus/blackbox-exporter:v0.25.0
     restart: unless-stopped
@@ -119,6 +147,7 @@ services:
       - backend
     volumes:
       - ./config/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - ./config/loki/rules:/etc/loki/rules:ro
       - loki_data:/loki
     command: -config.file=/etc/loki/local-config.yaml
     deploy:
@@ -494,6 +523,40 @@ services:
       timeout: 5s
       retries: 3
 
+  # --- Energy price + optional meter (P3) --------------------------
+  # aWATTar spot price works with zero config (DE/AT). Add a Tibber token or a
+  # Shelly EM IP for real consumption. Always on; degrades to energy_up=0.
+  energy-exporter:
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.energy"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - ENERGY_MARKET=${ENERGY_MARKET:-awattar_de}
+      - ENERGY_VAT=${ENERGY_VAT:-1.19}
+      - ENERGY_SURCHARGE_CT_KWH=${ENERGY_SURCHARGE_CT_KWH:-0}
+      - TIBBER_TOKEN=${TIBBER_TOKEN:-}
+      - SHELLY_HOST=${SHELLY_HOST:-}
+      - ENERGY_INTERVAL_SECONDS=${ENERGY_INTERVAL_SECONDS:-120}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    deploy:
+      resources:
+        limits: { cpus: '0.2', memory: 96M }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9128/healthz')\""]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+
   # --- Alerting (P0) ------------------------------------------------
   alertmanager:
     image: prom/alertmanager:v0.27.0
@@ -627,6 +690,7 @@ volumes:
   grafana_data:
   home_iot_data:   # Blink cloud token cache (home_iot.blink)
   alertmanager_data:
+  victoriametrics_data:
 
 secrets:
   fritz_monitor_password:

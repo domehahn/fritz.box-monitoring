@@ -580,3 +580,133 @@ def test_alertbridge_ascii_header():
 
     assert _ascii("🚨 CRITICAL: x") == "CRITICAL: x"
     assert _ascii("🚨🚨🚨") == "alert"
+
+
+# --------------------------------------------------------------------------- #
+# energy
+# --------------------------------------------------------------------------- #
+def test_energy_awattar_price_stats():
+    from home_iot.energy.exporter import awattar_slots, price_stats
+
+    # 24 hourly slots starting at midnight UTC; prices 100..330 Eur/MWh
+    base = 1_700_000_000
+    base -= base % 86400  # midnight
+    data = {
+        "data": [
+            {
+                "start_timestamp": (base + i * 3600) * 1000,
+                "end_timestamp": (base + (i + 1) * 3600) * 1000,
+                "marketprice": 100 + i * 10,
+            }
+            for i in range(24)
+        ]
+    }
+    slots = awattar_slots(data)
+    assert len(slots) == 24 and slots[0]["eur_kwh"] == 0.1
+
+    now = base + 3 * 3600 + 60  # inside slot 3 (130 Eur/MWh = 0.13 Eur/kWh)
+    snap = price_stats(slots, now, vat=1.0, surcharge_ct_kwh=0.0)
+    assert snap.spot_eur_kwh == 0.13
+    assert snap.consumer_eur_kwh == 0.13
+    assert snap.min_today == 0.1 and snap.max_today == 0.33
+    assert 0.12 < snap.rank_today < 0.14  # (0.13-0.1)/(0.33-0.1)
+    assert snap.level == int(snap.rank_today * 5)
+    # VAT + surcharge applied
+    snap2 = price_stats(slots, now, vat=1.19, surcharge_ct_kwh=15.0)
+    assert snap2.consumer_eur_kwh == round(0.13 * 1.19 + 0.15, 5)
+
+
+def test_energy_parse_shelly_gen2_and_gen1():
+    from home_iot.energy.exporter import parse_shelly
+
+    g2 = {
+        "em:0": {
+            "total_act_power": 812.4,
+            "a_act_power": 300.0,
+            "b_act_power": 500.0,
+            "c_act_power": 12.4,
+        },
+        "emdata:0": {"total_act": 1234567.0},
+    }
+    m = parse_shelly(g2)
+    assert m.power_w == 812.4
+    assert m.phase_w == {"A": 300.0, "B": 500.0, "C": 12.4}
+    assert m.import_wh == 1234567.0
+
+    g1 = {
+        "emeters": [{"power": 100.0, "total": 5000.0}, {"power": 50.0, "total": 2000.0}]
+    }
+    m1 = parse_shelly(g1)
+    assert m1.power_w == 150.0
+    assert m1.import_wh == 7000.0
+
+
+def test_energy_parse_tibber():
+    from home_iot.energy.exporter import parse_tibber
+
+    gql = {
+        "data": {
+            "viewer": {
+                "homes": [
+                    {
+                        "currentSubscription": {
+                            "priceInfo": {
+                                "current": {
+                                    "total": 0.2841,
+                                    "energy": 0.09,
+                                    "tax": 0.19,
+                                    "level": "EXPENSIVE",
+                                    "startsAt": "x",
+                                },
+                                "today": [
+                                    {"total": 0.20, "startsAt": "a"},
+                                    {"total": 0.30, "startsAt": "b"},
+                                    {"total": 0.2841, "startsAt": "c"},
+                                ],
+                                "tomorrow": [{"total": 0.18, "startsAt": "d"}],
+                            }
+                        },
+                        "consumption": {
+                            "nodes": [{"consumption": 1.4, "cost": 0.39, "from": "z"}]
+                        },
+                    }
+                ]
+            }
+        }
+    }
+    price, meter = parse_tibber(gql, now=1_700_000_000)
+    assert price.consumer_eur_kwh == 0.2841
+    assert price.level == 3
+    assert price.min_today == 0.2 and price.max_today == 0.3
+    assert price.min_next12h == 0.18
+    assert meter.last_hour_kwh == 1.4 and meter.last_hour_cost_eur == 0.39
+
+
+def test_energy_exporter_render():
+    from home_iot.energy.exporter import (
+        EnergyExporter,
+        MeterSnapshot,
+        PriceSnapshot,
+    )
+
+    exp = EnergyExporter()
+    exp.update(
+        PriceSnapshot(
+            source="awattar",
+            consumer_eur_kwh=0.28,
+            spot_eur_kwh=0.11,
+            level=3,
+            rank_today=0.72,
+            min_today=0.19,
+            max_today=0.34,
+        ),
+        MeterSnapshot(
+            source="shelly", power_w=640.0, phase_w={"A": 640.0}, import_wh=1000.0
+        ),
+        ok=True,
+    )
+    body = exp.render().decode()
+    assert "energy_up 1.0" in body
+    assert 'energy_price_eur_per_kwh{source="awattar"} 0.28' in body
+    assert 'energy_power_watts{source="shelly"} 640.0' in body
+    assert 'energy_phase_power_watts{phase="A",source="shelly"} 640.0' in body

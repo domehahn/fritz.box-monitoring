@@ -1,0 +1,65 @@
+groups:
+  - name: security_logs
+    rules:
+      - alert: FritzBoxFailedLogins
+        expr: |
+          sum(count_over_time(
+            {service="fritz-exporter"} |= "fritzbox_log" |~ "(?i)anmeldung.*(fehlgeschlagen|abgewiesen|ung.ltig)" [15m]
+          )) > 3
+        for: 0m
+        labels:
+          severity: warning
+          source: loki
+        annotations:
+          summary: "{{ $value }} failed FRITZ!Box logins in 15 min"
+          description: "Possible brute-force against the router UI / MyFRITZ. Check System > Ereignisse."
+
+      - alert: GrafanaAuthFailures
+        expr: |
+          sum(count_over_time(
+            {container=~".*grafana.*"} |~ "(?i)(invalid username or password|failed to authenticate)" [15m]
+          )) > 5
+        for: 0m
+        labels:
+          severity: warning
+          source: loki
+        annotations:
+          summary: "{{ $value }} failed Grafana logins in 15 min"
+
+  - name: stack_health_logs
+    rules:
+      - alert: ContainerStackTrace
+        expr: |
+          sum by (container) (count_over_time(
+            {stack="fritz-monitoring"} |~ "Traceback \\(most recent call last\\)" [10m]
+          )) > 0
+        for: 5m
+        labels:
+          severity: warning
+          source: loki
+        annotations:
+          summary: "{{ $labels.container }} is logging Python tracebacks"
+          description: "A service raised an unhandled exception in the last 10 min."
+
+      - alert: AlloyDeliveryErrors
+        expr: |
+          sum(count_over_time(
+            {container=~".*alloy.*"} |= "level=error" [10m]
+          )) > 5
+        for: 5m
+        labels:
+          severity: warning
+          source: loki
+        annotations:
+          summary: "Alloy is logging delivery errors"
+          description: "loki.write / discovery errors — logs may be dropping. Check the Alloy container."
+
+      - alert: HighLogErrorRate
+        expr: |
+          sum(count_over_time({stack="fritz-monitoring"} |~ "(?i)\\blevel=error\\b|\\bERROR\\b" [10m])) > 50
+        for: 10m
+        labels:
+          severity: info
+          source: loki
+        annotations:
+          summary: "Elevated error-log volume across the stack ({{ $value }} lines / 10 min)"

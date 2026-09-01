@@ -10,6 +10,15 @@ alerting:
     - static_configs:
         - targets: ['alertmanager:9093']
 
+# P4 — long-term storage. Prometheus keeps a short local window
+# (PROMETHEUS_RETENTION_TIME); everything is mirrored to VictoriaMetrics, which
+# compresses hard and holds years. Grafana has both datasources.
+remote_write:
+  - url: http://victoriametrics:8428/api/v1/write
+    queue_config:
+      max_samples_per_send: 10000
+      capacity: 20000
+
 scrape_configs:
   - job_name: 'fritz'
     scrape_interval: 30s
@@ -162,6 +171,17 @@ scrape_configs:
   - job_name: 'alertmanager'
     static_configs:
       - targets: ['alertmanager:9093']
+
+  # --- Long-term storage (P4) ---
+  - job_name: 'victoriametrics'
+    static_configs:
+      - targets: ['victoriametrics:8428']
+    metrics_path: /metrics
+
+  - job_name: 'energy_exporter'
+    scrape_interval: 60s
+    static_configs:
+      - targets: ['energy-exporter:9128']
 
   # --- Weather (P3) / Speedtest (P4). DOWN unless their profile is enabled. ---
   - job_name: 'weather_exporter'

@@ -37,3 +37,19 @@ compactor:
   retention_enabled: true
   retention_delete_delay: 2h
   delete_request_store: filesystem
+
+# P2 — log-based alerting. Alloy writes with tenant_id "fake", so rules live in
+# /loki/rules/fake/. The ruler evaluates LogQL and pushes to Alertmanager, the
+# same one the Prometheus rules use.
+ruler:
+  storage:
+    type: local
+    local:
+      directory: /etc/loki/rules   # bind-mounted, read-only
+  rule_path: /loki/rules-tmp       # writable scratch inside the data volume
+  alertmanager_url: http://alertmanager:9093
+  enable_alertmanager_v2: true
+  enable_api: true
+  ring:
+    kvstore:
+      store: inmemory
