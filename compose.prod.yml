@@ -220,6 +220,7 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/grafana_admin_password
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-}
     secrets:
       - grafana_admin_password
     deploy:
@@ -641,6 +642,73 @@ services:
       timeout: 5s
       retries: 3
 
+  # --- Reverse proxy (P4, opt-in) ---------------------------------
+  # HTTPS + one hostname for Grafana. `docker compose --profile proxy up -d`.
+  caddy:
+    profiles: [proxy]
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    ports:
+      - "${PROXY_BIND_ADDRESS:-0.0.0.0}:443:443"
+      - "${PROXY_BIND_ADDRESS:-0.0.0.0}:80:80"
+    networks:
+      - backend
+      - ingress
+    volumes:
+      - ./config/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - PROXY_DOMAIN=${PROXY_DOMAIN:-localhost}
+      - PROXY_TLS=${PROXY_TLS:-internal}
+    deploy:
+      resources:
+        limits: { cpus: '0.3', memory: 96M }
+    healthcheck:
+      test: ["CMD", "wget", "--no-check-certificate", "--spider", "-q", "https://localhost/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # --- Weekly digest -> ntfy (P6) --------------------------------
+  digest:
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.digest"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - PROMETHEUS_URL=http://prometheus:9090
+      - NTFY_URL=${NTFY_URL:-https://ntfy.sh}
+      - NTFY_TOPIC=${NTFY_TOPIC:-}
+      - NTFY_TOKEN=${NTFY_TOKEN:-}
+      - DIGEST_DAY=${DIGEST_DAY:-0}
+      - DIGEST_HOUR=${DIGEST_HOUR:-9}
+      - DIGEST_WINDOW=${DIGEST_WINDOW:-7d}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    deploy:
+      resources:
+        limits: { cpus: '0.2', memory: 96M }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9130/healthz')\""]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+
   # --- Alerting (P0) ------------------------------------------------
   alertmanager:
     image: prom/alertmanager:v0.27.0
@@ -776,6 +844,8 @@ volumes:
   alertmanager_data:
   victoriametrics_data:
   backup_textfile:
+  caddy_data:
+  caddy_config:
 
 secrets:
   fritz_monitor_password:

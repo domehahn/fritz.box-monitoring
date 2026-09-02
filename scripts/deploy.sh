@@ -116,6 +116,7 @@ elif [ -n "$CHANGED" ]; then
   say "Recreating changed services:$CHANGED"
   # shellcheck disable=SC2086
   $COMPOSE up -d --build --force-recreate $CHANGED
+  $COMPOSE up -d --build   # bring up anything newly added to the compose file
 else
   say "No mounted-config drift. Applying any image/compose changes"
   $COMPOSE up -d --build

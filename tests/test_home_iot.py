@@ -861,3 +861,60 @@ def test_lantap_classify_flows():
     )
     out = classify_flows(frame, 120, nets)
     assert out == [("192.168.178.10", "tx", "dns", 120)]
+
+
+# --------------------------------------------------------------------------- #
+# digest (weekly report)
+# --------------------------------------------------------------------------- #
+def test_digest_seconds_until():
+    import datetime as dt
+    from home_iot.digest.app import seconds_until
+
+    # Wed 12:00 -> next Monday 09:00 is in 4d 21h
+    now = dt.datetime(2026, 9, 2, 12, 0, 0)  # a Wednesday
+    s = seconds_until(0, 9, now)
+    assert abs(s - ((4 * 24 + 21) * 3600)) < 2
+    # same day but earlier hour -> today
+    mon = dt.datetime(2026, 8, 31, 7, 0, 0)  # a Monday
+    assert abs(seconds_until(0, 9, mon) - 2 * 3600) < 2
+    # same day, past the hour -> +7d
+    mon_late = dt.datetime(2026, 8, 31, 10, 0, 0)
+    assert abs(seconds_until(0, 9, mon_late) - (7 * 24 - 1) * 3600) < 2
+
+
+def test_digest_build_report():
+    from home_iot.digest.report import build_report
+
+    scalars = {
+        "avg_over_time(home:network_health:score[7d])": 0.985,
+        "min_over_time(home:network_health:score[7d])": 0.7,
+        "avg_over_time(home:health:internet_reachability[7d])": 0.999,
+        "max(max_over_time(fritz:probe_loss_ratio:5m[7d]))": 0.05,
+        "avg_over_time(home:health:dns[7d])": 1.0,
+        "avg_over_time(energy_price_eur_per_kwh[7d])": 0.24,
+        "increase(energy_import_watt_hours_total[7d]) / 1000": None,
+        'count(count by (alertname) (max_over_time(ALERTS{alertstate="firing"}[7d])))': 2.0,
+        "time() - backup_last_success_timestamp_seconds": 7200.0,
+        "backup_repository_bytes": 4.6e7,
+    }
+    vectors = {
+        "topk(3, sum by (ip) (increase(lantap_host_received_bytes_total[7d])))": [
+            ({"ip": "192.168.178.198"}, 8.2e9),
+            ({"ip": "192.168.178.10"}, 3.1e9),
+        ],
+        "lantap_host_info": [({"ip": "192.168.178.198", "name": "Gaming-PC"}, 1.0)],
+        'topk(5, count by (alertname) (max_over_time(ALERTS{alertstate="firing"}[7d])))': [
+            ({"alertname": "BlinkSyncModuleOffline"}, 1.0)
+        ],
+    }
+    title, body = build_report(
+        lambda e: scalars.get(e), lambda e: vectors.get(e, []), "7d"
+    )
+    assert "Weekly network digest" in title
+    assert "avg 98.50%" in body
+    assert "Gaming-PC — 8.2 GB" in body
+    assert "Worst packet loss" in body  # 5% > 2% threshold
+    assert "Alerts fired** — 2 distinct" in body
+    assert "BlinkSyncModuleOffline" in body
+    assert "last 2h ago" in body
+    assert "repo 46 MB" in body

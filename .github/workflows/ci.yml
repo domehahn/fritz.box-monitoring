@@ -57,7 +57,7 @@ jobs:
           echo "test_password" > secrets/device_manager_admin_password.txt
           echo "test_secret_key" > secrets/device_manager_secret_key.txt
           docker compose -f compose.prod.yml config
-          docker compose -f compose.prod.yml --profile admin --profile iperf --profile smarthome --profile weather --profile speedtest --profile lantap config
+          docker compose -f compose.prod.yml --profile admin --profile iperf --profile smarthome --profile weather --profile speedtest --profile lantap --profile proxy config
 
       - name: Validate Prometheus config & rules
         run: |
@@ -80,6 +80,12 @@ jobs:
                         /config/prometheus/rules/backup_alerts.yml \
                         /config/prometheus/rules/health_rules.yml \
                         /config/prometheus/rules/anomaly_rules.yml
+
+      - name: Validate Caddyfile
+        run: |
+          docker run --rm -v "$PWD/config/caddy/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            -e PROXY_DOMAIN=localhost -e PROXY_TLS=internal \
+            caddy:2.8-alpine caddy validate --config /etc/caddy/Caddyfile
 
       - name: Validate Alertmanager config
         run: |
