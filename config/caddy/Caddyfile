@@ -8,6 +8,7 @@
 #                  Let's Encrypt cert when PROXY_DOMAIN is a public FQDN.
 {
 	admin off
+	auto_https disable_redirects
 }
 
 {$PROXY_DOMAIN:localhost} {
