@@ -655,8 +655,8 @@ services:
     cap_add:
       - NET_BIND_SERVICE
     ports:
-      - "${PROXY_BIND_ADDRESS:-0.0.0.0}:443:443"
-      - "${PROXY_BIND_ADDRESS:-0.0.0.0}:80:80"
+      # standard :443 by default; set PROXY_HTTPS_PORT if 443 is taken on the host
+      - "${PROXY_BIND_ADDRESS:-0.0.0.0}:${PROXY_HTTPS_PORT:-443}:443"
     networks:
       - backend
       - ingress
