@@ -341,6 +341,25 @@ exporter up (0.10). Recorded every 30 s with its five components
 `NetworkHealthCritical` (< 0.6). Dashboard **Network Health & Traffic Mix** —
 one traffic-light number + a 24 h / 7 d average + the component breakdown.
 
+## New-device detection — `home_iot.netwatch`
+
+Always on, port 9133. Polls `fritz_device_up`, keeps a **persistent** first-seen
+timestamp per MAC in the `home_iot_data` volume (so a Prometheus rebuild doesn't
+make every device look new), and emits:
+
+* `device_first_seen_timestamp_seconds{mac,name}`
+* `device_known{mac,name}` — 1 unless first-seen within the window
+* `device_new{mac,name,ip,connection}` — 1 if first seen < `NETWATCH_NEW_DAYS` (7) ago
+* `netwatch_devices_total`, `netwatch_new_total`, `netwatch_up`
+
+Alerts: **`NewDeviceOnWiFi`** (warning — a stranger on your Wi-Fi is the real
+concern), `NewDeviceOnNetwork` (info, wired/unknown link), `ManyNewDevices`,
+`NetwatchDown`. Panels in **Network Events & Forensics** (`/d/fritz_events`).
+
+**Allowlist** a device so it's never flagged: one MAC or lowercase
+name-substring per line in `home_iot_data:/data/known_devices.txt` —
+`docker compose exec netwatch-exporter sh -c 'echo 44:6d:7f:26:5f:a3 >> /data/known_devices.txt'`.
+
 ## Bufferbloat — latency under load
 
 `compose --profile bufferbloat`, port 9132. Speedtest measures the pipe;

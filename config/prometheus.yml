@@ -206,6 +206,11 @@ scrape_configs:
     static_configs:
       - targets: ['automation:9131']
 
+  - job_name: 'netwatch'
+    scrape_interval: 60s
+    static_configs:
+      - targets: ['netwatch-exporter:9133']
+
   # Per-device bandwidth (compose --profile lantap). DOWN unless enabled.
   - job_name: 'lantap'
     scrape_interval: 15s

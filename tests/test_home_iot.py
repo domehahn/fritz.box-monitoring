@@ -994,6 +994,65 @@ def test_dockerstats_connection_selects_tcp_or_unix():
     assert u.__class__.__name__ == "_UnixHTTPConnection"
 
 
+def test_netwatch_allowlist_and_decide():
+    from home_iot.netwatch.exporter import decide, load_allowlist, _allowed
+
+    allow = load_allowlist(
+        "# my devices\nAA:BB:CC:DD:EE:FF\n  gaming-pc  # kid\n\n"
+    )
+    assert allow == ["aa:bb:cc:dd:ee:ff", "gaming-pc"]
+    assert _allowed("AA:BB:CC:DD:EE:FF", "whatever", allow)
+    assert _allowed("11:22:33:44:55:66", "Kids Gaming-PC", allow)
+    assert not _allowed("11:22:33:44:55:66", "printer", allow)
+
+    samples = [
+        {"mac": "de:ad:be:ef:00:01", "name": "Known-Phone", "ip": "192.168.178.10",
+         "interface": "802.11"},
+        {"mac": "de:ad:be:ef:00:02", "name": "New-Thing", "ip": "192.168.178.99"},
+    ]
+    flags = [1.0, 1.0]
+    state = {"DE:AD:BE:EF:00:01": 1_000.0}  # phone seen long ago
+    devs, new_state = decide(samples, flags, state, [], now=2_000_000.0)
+    by = {d.mac: d for d in devs}
+    assert by["DE:AD:BE:EF:00:01"].first_seen == 1_000.0        # preserved
+    assert by["DE:AD:BE:EF:00:02"].first_seen == 2_000_000.0    # stamped now
+    assert by["DE:AD:BE:EF:00:01"].connection == "wifi"
+    assert new_state["DE:AD:BE:EF:00:02"] == 2_000_000.0        # persisted
+
+    # fresh install (empty state) + seed_ts -> everything stamped in the past
+    fresh, _ = decide(samples, flags, {}, [], now=2_000_000.0, seed_ts=42.0)
+    assert all(d.first_seen == 42.0 for d in fresh)
+    # but once state exists, seed_ts is ignored for the genuinely-new MAC
+    mixed, _ = decide(samples, flags, {"DE:AD:BE:EF:00:01": 1_000.0}, [],
+                      now=2_000_000.0, seed_ts=42.0)
+    assert {d.mac: d.first_seen for d in mixed}["DE:AD:BE:EF:00:02"] == 2_000_000.0
+
+
+def test_netwatch_exporter_flags_new_only():
+    from home_iot.netwatch.exporter import NetwatchExporter, decide
+
+    now = 1_000_000.0
+    samples = [
+        {"mac": "aa:aa:aa:aa:aa:aa", "name": "Old-TV", "ip": "192.168.178.5"},
+        {"mac": "bb:bb:bb:bb:bb:bb", "name": "Rogue", "ip": "192.168.178.200",
+         "interface": "802.11"},
+        {"mac": "cc:cc:cc:cc:cc:cc", "name": "New-but-allowed", "ip": "192.168.178.6"},
+    ]
+    state = {"AA:AA:AA:AA:AA:AA": now - 40 * 86400}  # 40 days old
+    devs, _ = decide(samples, [1, 1, 1], state, ["cc:cc:cc:cc:cc:cc"], now=now)
+    exp = NetwatchExporter()
+    exp.update(devs, ok=True, new_days=7.0, now=now)
+    body = exp.render().decode()
+    new_lines = [ln for ln in body.splitlines() if ln.startswith("device_new{")]
+    assert new_lines == [
+        'device_new{connection="wifi",ip="192.168.178.200",'
+        'mac="BB:BB:BB:BB:BB:BB",name="Rogue"} 1.0'
+    ]
+    assert "netwatch_new_total 1.0" in body
+    assert 'device_known{mac="AA:AA:AA:AA:AA:AA",name="Old-TV"} 1' in body
+    assert 'device_known{mac="CC:CC:CC:CC:CC:CC",name="New-but-allowed"} 1' in body
+
+
 def test_bufferbloat_grade_and_summarise():
     from home_iot.bufferbloat.exporter import BufferbloatResult, grade, summarise
 

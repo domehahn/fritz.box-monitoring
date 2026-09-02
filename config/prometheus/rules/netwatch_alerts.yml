@@ -1,0 +1,38 @@
+groups:
+  - name: netwatch_alerts
+    rules:
+      - alert: NewDeviceOnWiFi
+        expr: device_new{connection="wifi"} == 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "New Wi-Fi device: {{ $labels.name }} ({{ $labels.mac }}, {{ $labels.ip }})"
+          description: "A MAC not seen before joined over Wi-Fi. If it's yours, add it to home_iot_data:/data/known_devices.txt. Otherwise change the Wi-Fi password."
+
+      - alert: NewDeviceOnNetwork
+        expr: device_new{connection!="wifi"} == 1
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "New device: {{ $labels.name }} ({{ $labels.mac }}, {{ $labels.ip }})"
+          description: "A MAC not seen before appeared on the LAN (wired or unknown link). Add it to known_devices.txt if expected."
+
+      - alert: ManyNewDevices
+        expr: netwatch_new_total > 4
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value }} unfamiliar devices on the network"
+          description: "Either a lot of guests, or the netwatch first-seen state was lost. Check the New Devices panel."
+
+      - alert: NetwatchDown
+        expr: netwatch_up == 0 or absent(netwatch_up)
+        for: 15m
+        labels:
+          severity: info
+        annotations:
+          summary: "netwatch-exporter is not reporting"
+          description: "New-device detection is blind. Check `docker logs …-netwatch-exporter-1`."
