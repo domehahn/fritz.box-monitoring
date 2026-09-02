@@ -30,6 +30,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends git && \
     rm -rf /var/lib/apt/lists/* /tmp/*
 
 COPY src /app/src
+
+# /data is a mount point for per-exporter state (blink token, netwatch first-seen
+# map). Create it owned by appuser so a fresh named volume inherits that and the
+# non-root process can write.
+RUN mkdir -p /data && chown appuser:appgroup /data
+
 USER appuser:appgroup
 
 # Default entrypoint; every compose service overrides `command:`.
