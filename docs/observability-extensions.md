@@ -216,6 +216,27 @@ emits), and buckets `orig_len` by the local source / destination IP:
 Bandwidth** has top-talker charts, a per-device table (Mbit/s now + GB today),
 and a `$device` drill-down.
 
+### Continuous operation (Dauerbetrieb)
+
+Enabled by putting `COMPOSE_PROFILES=lantap` (+ `LANTAP_MAX_MINUTES=0`) in
+`.env.production`, so it comes up with the normal `docker compose up -d`.
+
+Built for 24/7 despite AVM not supporting it:
+* `LANTAP_SNAPLEN=128` — only headers cross the wire (~0.3 Mbit/s stream);
+  byte counts stay exact (they use the packet's real length).
+* **Scheduled reconnect** every `LANTAP_RECONNECT_MINUTES` (30) — tears down and
+  reopens the capture so no buffer builds up on the box.
+* **Exponential backoff** (up to 60 s) if the stream starts corrupting under
+  load, instead of hammering a stressed box.
+* Self-metrics: `lantap_stream_bytes_total` (the tap's own footprint),
+  `lantap_capture_sessions_total`, `lantap_parse_errors_total`,
+  `lantap_reconnect_backoff_seconds` — plotted on the dashboard's *Capture
+  health* row. Alerts `LanTapStalled`, `LanTapHighParseErrors`,
+  `LanTapCaptureFlapping`.
+
+If the box gets sluggish during big downloads, either accept slight
+undercounting in those windows or switch to `LANTAP_IFACE=3-17` (WAN side only).
+
 **Caveats**
 * **CPU load on the FRITZ!Box** — AVM does not support 24/7 capture. Small
   `LANTAP_SNAPLEN` (128) keeps the stream light (byte counts use the real
