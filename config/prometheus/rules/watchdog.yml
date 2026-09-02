@@ -1,0 +1,32 @@
+groups:
+  - name: watchdog
+    rules:
+      # Always firing. Routed to the alertbridge /watchdog endpoint; if it
+      # STOPS arriving, the alertbridge fires a direct ntfy warning (the whole
+      # Prometheus/Alertmanager path is down). Route an external observer
+      # (healthchecks.io) via DEADMAN_URL for a true dead-man's-switch.
+      - alert: Watchdog
+        expr: vector(1)
+        labels:
+          severity: none
+        annotations:
+          summary: "Alerting pipeline heartbeat"
+
+  - name: alerting_self_monitor
+    rules:
+      - alert: AlertingPipelineStalled
+        expr: time() - alertbridge_watchdog_last_seen_timestamp_seconds > 900
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "alertbridge has not received a Watchdog for 15 min"
+          description: "Alertmanager may not be routing — best-effort alert; the alertbridge also warns directly via ntfy."
+
+      - alert: AlertmanagerNotConnected
+        expr: prometheus_notifications_alertmanagers_discovered < 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Prometheus has no Alertmanager"

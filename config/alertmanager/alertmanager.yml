@@ -16,6 +16,12 @@ route:
       group_interval: 1m
       repeat_interval: 1h
       continue: false
+    - matchers: [alertname="Watchdog"]
+      receiver: deadman
+      group_wait: 0s
+      group_interval: 1m
+      repeat_interval: 1m
+      continue: false
     - matchers: [severity="info"]
       receiver: info
       group_wait: 2m
@@ -36,6 +42,10 @@ receivers:
   - name: info
     webhook_configs:
       - url: http://alertbridge:9127/alert
+        send_resolved: false
+  - name: deadman
+    webhook_configs:
+      - url: http://alertbridge:9127/watchdog
         send_resolved: false
 
 inhibit_rules:

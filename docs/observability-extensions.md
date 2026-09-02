@@ -271,9 +271,37 @@ docker compose -f compose.prod.yml --profile lantap stop lantap-exporter
   `backup_last_run_success`, `backup_snapshots`, `backup_repository_bytes` to a
   textfile that `node-exporter` scrapes. Alerts `BackupStale` (>36 h),
   `BackupFailing`, `BackupMetricsMissing`.
+* **Verification**: every `BACKUP_VERIFY_EVERY` runs (7 = weekly) the loop runs
+  `restic check --read-data-subset=5%` **and** a real restore smoke test — it
+  recovers `.env.production` to a scratch dir and asserts it is non-empty, so a
+  silently-corrupt or unreadable repo is caught before you need it. Writes
+  `backup_last_verify_success` / `backup_last_verify_timestamp_seconds` to a
+  separate textfile (`backup-verify.prom`). Alerts `BackupVerifyFailed`,
+  `BackupVerifyStale` (>14 d). Force one now:
+  `docker compose -f compose.prod.yml run --rm backup verify`.
 * **On demand**: `make backup-now`. **Restore**:
   `docker run --rm -e RESTIC_PASSWORD_FILE=... -v <repo>:/repo -v <target>:/out \
    restic/restic -r /repo restore latest --target /out`.
+
+## Dead-man's-switch — `Watchdog` alert + `alertbridge`
+
+The whole alert path (Prometheus → Alertmanager → alertbridge → ntfy) can fail
+silently. To catch that, a `Watchdog` rule (`expr: vector(1)`, `severity: none`)
+always fires and Alertmanager routes it to `alertbridge` `/watchdog` every
+minute (its own `deadman` receiver, `repeat_interval: 1m`).
+
+* alertbridge records the time and exposes
+  `alertbridge_watchdog_last_seen_timestamp_seconds`. If it sees **no** Watchdog
+  for `DEADMAN_STALE_SECONDS` (600, floor 120) a background task pushes a
+  `🚨 ALERTING PIPELINE DOWN` ntfy **directly** — it does not go through
+  Alertmanager, so it survives Alertmanager being down.
+* Prometheus-side guards: `AlertingPipelineStalled` (alertbridge silent 15 min),
+  `AlertmanagerNotConnected` (`prometheus_notifications_alertmanagers_discovered
+  < 1`).
+* **True external DMS**: set `DEADMAN_URL` to a healthchecks.io-style ping URL.
+  alertbridge GETs it on every Watchdog; if the box (or its uplink) dies
+  entirely, that service alarms from outside. `alertbridge_deadman_fires_total`
+  counts internal trips.
 
 ## Deploying changes — `scripts/deploy.sh`
 
