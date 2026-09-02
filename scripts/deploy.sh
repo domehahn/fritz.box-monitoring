@@ -34,28 +34,7 @@ docker run --rm -v "$PWD/config/loki:/c:ro" grafana/loki:3.1.1 \
   -config.file=/c/loki-config.yml -verify-config >/dev/null 2>&1 || \
   echo "  (loki -verify-config not conclusive; skipping)"
 
-python3 - <<'PY' || die "dashboard JSON invalid"
-import json, glob, collections, sys
-allowed = {"prometheus", "loki", "victoriametrics", "-- Grafana --", "-- Mixed --", None}
-bad = []
-for f in sorted(glob.glob("config/grafana/provisioning/dashboards_files/*.json")):
-    d = json.load(open(f)); ids = []
-    def walk(o):
-        if isinstance(o, dict):
-            if o.get("type") in ("prometheus", "loki") and o.get("uid") not in allowed:
-                bad.append(f"{f}: datasource {o.get('uid')!r}")
-            for v in o.values(): walk(v)
-        elif isinstance(o, list):
-            for v in o: walk(v)
-    def collect(ps):
-        for p in ps: ids.append(p.get("id")); collect(p.get("panels", []))
-    collect(d.get("panels", [])); walk(d.get("panels", []))
-    dups = [i for i, n in collections.Counter(ids).items() if n > 1]
-    if dups: bad.append(f"{f}: dup panel ids {dups}")
-if bad:
-    print("\n".join(bad)); sys.exit(1)
-print(f"  {len(glob.glob('config/grafana/provisioning/dashboards_files/*.json'))} dashboards")
-PY
+python3 scripts/lint-dashboards.py || die "dashboard lint failed"
 ok "grafana dashboards"
 
 $COMPOSE config -q || die "compose config invalid"

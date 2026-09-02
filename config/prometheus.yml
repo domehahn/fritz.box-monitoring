@@ -20,6 +20,13 @@ remote_write:
       capacity: 20000
 
 scrape_configs:
+  # Prometheus scraping itself — TSDB size, head series (cardinality),
+  # rule-eval failures, and prometheus_notifications_alertmanagers_discovered
+  # (the AlertmanagerNotConnected guard). See rules/meta_rules.yml.
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
   - job_name: 'fritz'
     scrape_interval: 30s
     scrape_timeout: 10s

@@ -1,4 +1,4 @@
-.PHONY: install lint format typecheck test security compose-validate smoke deploy check backup-now check-secrets scan-now rotate-grafana all
+.PHONY: install lint format typecheck test security compose-validate smoke deploy check backup-now check-secrets scan-now rotate-grafana lint-dashboards cardinality all
 
 VENV_BIN ?= $(shell poetry env info --path 2>/dev/null)/bin
 PYTHON ?= $(VENV_BIN)/python
@@ -50,6 +50,12 @@ check-secrets:
 
 scan-now:
 	docker compose -f compose.prod.yml --env-file .env.production run --rm trivy once
+
+lint-dashboards:
+	python3 scripts/lint-dashboards.py
+
+cardinality:
+	bash scripts/cardinality-report.sh
 
 rotate-grafana:
 	@openssl rand -base64 24 | tr -d '\n' > secrets/grafana_admin_password.txt

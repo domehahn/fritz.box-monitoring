@@ -1,0 +1,63 @@
+groups:
+  # The monitoring stack watching itself: TSDB size, cardinality, rule health.
+  - name: meta_recording
+    interval: 1m
+    rules:
+      - record: stack:tsdb_head_series:count
+        expr: prometheus_tsdb_head_series
+
+      - record: stack:series_by_job:count
+        expr: count by (job) ({__name__=~".+"})
+
+      - record: stack:ingest_samples:rate5m
+        expr: sum(rate(prometheus_tsdb_head_samples_appended_total[5m]))
+
+  - name: meta_alerts
+    rules:
+      - alert: PrometheusHighCardinality
+        expr: prometheus_tsdb_head_series > 150000
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prometheus TSDB holds {{ $value | humanize }} active series"
+          description: "Head series above 150k on a home stack means a label is exploding. Check the Stack Overhead dashboard → 'Top metrics by series' and the offending exporter's labels."
+
+      - alert: PrometheusCardinalityGrowth
+        expr: >
+          predict_linear(prometheus_tsdb_head_series[6h], 72 * 3600)
+          > 1.5 * prometheus_tsdb_head_series
+          and prometheus_tsdb_head_series > 50000
+        for: 1h
+        labels:
+          severity: info
+        annotations:
+          summary: "Active series trending up fast (+50% projected in 3 days)"
+          description: "{{ $value | humanize }} series projected. A new exporter or a churny label (id, timestamp, path) is likely the cause."
+
+      - alert: PrometheusRuleEvalFailing
+        expr: increase(prometheus_rule_evaluation_failures_total[10m]) > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "A recording/alerting rule is failing to evaluate"
+          description: "{{ $value | humanize }} failures in 10 min. Check `promtool check rules` and Prometheus logs."
+
+      - alert: PrometheusTSDBReloadFailing
+        expr: increase(prometheus_tsdb_reloads_failures_total[30m]) > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prometheus TSDB reload failed"
+          description: "The on-disk blocks may be corrupt or the disk is full."
+
+      - alert: PrometheusTargetScrapeTooSlow
+        expr: max by (job) (scrape_duration_seconds) > 8
+        for: 15m
+        labels:
+          severity: info
+        annotations:
+          summary: "Job {{ $labels.job }} scrape takes {{ $value | printf \"%.1f\" }}s"
+          description: "Approaching the 10s scrape budget — an exporter is slow (dockerstats fanning out, lantap under load)."
