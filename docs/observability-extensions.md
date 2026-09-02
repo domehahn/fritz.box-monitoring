@@ -341,6 +341,24 @@ exporter up (0.10). Recorded every 30 s with its five components
 `NetworkHealthCritical` (< 0.6). Dashboard **Network Health & Traffic Mix** —
 one traffic-light number + a 24 h / 7 d average + the component breakdown.
 
+## External probe (from the internet) — GitHub Actions
+
+Every internal probe runs from inside the LAN, so it structurally can't see an
+ISP outage, a stuck DynDNS updater, or a public-IP change. The
+`external-probe` workflow (`.github/workflows/external-probe.yml`,
+`scripts/external-probe.sh`) runs every 30 min on a GitHub runner and checks:
+
+1. the current public IPv4 (`api.ipify.org`),
+2. every URL in `config/external-probe/targets.txt` (or the
+   `EXTERNAL_PROBE_TARGETS` repo variable) — HTTP status **and** TLS days-left,
+3. `EXTERNAL_PROBE_DDNS_HOST` resolves **and** its A record matches the public
+   IP (catches a dead MyFRITZ!/DynDNS updater).
+
+On any failure it POSTs a summary to ntfy (`NTFY_TOPIC` / `NTFY_URL` repo
+secrets) and the job goes red; every run writes a table to the job summary.
+`bash scripts/external-probe.sh` runs the same checks locally
+(`PROBE_TARGETS=… PROBE_DDNS_HOST=…`).
+
 ## New-device detection — `home_iot.netwatch`
 
 Always on, port 9133. Polls `fritz_device_up`, keeps a **persistent** first-seen
