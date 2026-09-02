@@ -63,36 +63,49 @@ ok "compose config"
 
 [ "$MODE" = "--check" ] && { say "validate-only — done"; exit 0; }
 
-# ------------------------------------------------------------- what changed
-say "Detecting changed mounted files (vs running containers)"
+# --------------------------------------------------- what changed since last deploy
+# Compare each service's mounted config against a local state file, NOT the
+# container FS: Docker Desktop can have the file present in the container but
+# the process (e.g. Prometheus rule state) still on the old version, so
+# "container matches host" is not enough to skip a recreate.
+say "Detecting config changes since the last deploy"
+STATE_DIR=".deploy-state"; mkdir -p "$STATE_DIR"
 CHANGED=""
-mounted_state() {  # service : "hostpath containerpath" pairs from compose config
+hash_path() {  # file or dir -> stable sha
+  if [ -f "$1" ]; then shasum -a 256 "$1" | cut -d' ' -f1
+  elif [ -d "$1" ]; then
+    ( cd "$1" && find . -type f | LC_ALL=C sort | while read -r p; do
+        printf '%s %s\n' "$p" "$(shasum -a 256 "$p" | cut -d' ' -f1)"; done ) | shasum -a 256 | cut -d' ' -f1
+  else echo missing; fi
+}
+mounted_state() {  # only config-bearing mounts (not data dirs like ./backups)
   $COMPOSE config --format json | python3 -c '
-import json,sys
-d=json.load(sys.stdin)
-for name,svc in d.get("services",{}).items():
-    for m in svc.get("volumes",[]):
-        if m.get("type")=="bind" and m.get("source","").rstrip("/").startswith("'"$PWD"'"):
-            print(name, m["source"], m["target"])
+import json, sys, os
+root = "'"$PWD"'"
+d = json.load(sys.stdin)
+for name, svc in d.get("services", {}).items():
+    for m in svc.get("volumes", []):
+        if m.get("type") != "bind":
+            continue
+        src = m.get("source", "").rstrip("/")
+        if not src.startswith(root):
+            continue
+        rel = os.path.relpath(src, root)
+        if rel.startswith("config/") or rel == "config" or rel.startswith("secrets") \
+           or rel.endswith((".yml", ".yaml", ".alloy")) or rel == ".env.production":
+            print(name, src)
 '
 }
-while read -r svc src tgt; do
+declare_new_hash() { printf '%s\n' "$2" > "$STATE_DIR/$1"; }
+while read -r svc src; do
   [ -z "${svc:-}" ] && continue
   cname="fritz-monitoring-prod-${svc}-1"
-  docker ps --format '{{.Names}}' | grep -qx "$cname" || { CHANGED="$CHANGED $svc"; continue; }
-  # compare: does the file inside the container match the host?
-  if [ -f "$src" ]; then
-    hsum=$(shasum -a 256 "$src" | cut -d' ' -f1)
-    csum=$(docker exec "$cname" sha256sum "$tgt" 2>/dev/null | cut -d' ' -f1 || echo missing)
-    [ "$hsum" != "$csum" ] && CHANGED="$CHANGED $svc"
-  elif [ -d "$src" ]; then
-    # sorted manifest of "relpath sha256" so host (BSD) and container (GNU)
-    # produce the same hash regardless of find traversal order
-    hsum=$(cd "$src" && find . -type f | LC_ALL=C sort | while read -r p; do
-             printf '%s %s\n' "$p" "$(shasum -a 256 "$p" | cut -d' ' -f1)"; done | shasum -a 256 | cut -d' ' -f1)
-    csum=$(docker exec "$cname" sh -c "cd '$tgt' && find . -type f | LC_ALL=C sort | while read -r p; do printf '%s %s\n' \"\$p\" \"\$(sha256sum \"\$p\" | cut -d' ' -f1)\"; done | sha256sum | cut -d' ' -f1" 2>/dev/null || echo missing)
-    [ "$hsum" != "$csum" ] && CHANGED="$CHANGED $svc"
-  fi
+  new="$(hash_path "$src")"
+  key="${svc}__$(echo "$src" | shasum -a 256 | cut -c1-12)"
+  old="$(cat "$STATE_DIR/$key" 2>/dev/null || echo none)"
+  if ! docker ps --format '{{.Names}}' | grep -qx "$cname"; then CHANGED="$CHANGED $svc"
+  elif [ "$new" != "$old" ]; then CHANGED="$CHANGED $svc"; fi
+  declare_new_hash "$key" "$new"
 done < <(mounted_state)
 CHANGED=$(echo "$CHANGED" | tr ' ' '\n' | sort -u | tr '\n' ' ' | sed 's/^ *//')
 
@@ -127,5 +140,14 @@ for line in sys.stdin:
   [ "$(date +%s)" -ge "$deadline" ] && die "still unhealthy after 180s:$bad"
   sleep 5
 done
+
+# ------------------------------------------------------------- reload rulesets
+# cheap + idempotent; makes sure Prometheus/Loki actually re-read rule files
+# even when the container was not recreated
+say "Reloading rule engines"
+docker exec fritz-monitoring-prod-prometheus-1 wget -qO- --post-data='' \
+  http://localhost:9090/-/reload >/dev/null 2>&1 && ok "prometheus reloaded" || \
+  echo "  (prometheus reload skipped)"
+docker exec fritz-monitoring-prod-loki-1 kill -HUP 1 >/dev/null 2>&1 || true
 
 say "Deploy complete"

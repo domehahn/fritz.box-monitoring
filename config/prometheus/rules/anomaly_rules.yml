@@ -1,0 +1,52 @@
+groups:
+  # Dynamic / baseline-relative alerts. Heavy subqueries — evaluated every 5 min.
+  - name: anomaly_alerts
+    interval: 5m
+    rules:
+      - alert: DeviceTrafficSpike
+        expr: >
+          (
+            sum by (ip) (rate(lantap_host_received_bytes_total[10m])) > 25e6
+          )
+          and
+          (
+            sum by (ip) (rate(lantap_host_received_bytes_total[10m]))
+            > 6 * sum by (ip) (
+              avg_over_time(rate(lantap_host_received_bytes_total[10m])[7d:1h])
+            )
+          )
+        for: 15m
+        labels:
+          severity: info
+        annotations:
+          summary: "{{ $labels.ip }} is downloading far above its 7-day norm"
+          description: "{{ $value | humanize }}B/s now, > 6x its usual rate. See Per-Device Bandwidth."
+
+      - alert: WanSaturatedSustained
+        expr: fritz:wan_download_utilization:ratio > 0.9
+        for: 20m
+        labels:
+          severity: info
+        annotations:
+          summary: "WAN download > 90% of capacity for 20 min"
+          description: "Something is using most of the line — check Per-Device Bandwidth for the top talker."
+
+      - alert: HeatingAboveExpectation
+        expr: avg(bosch_device_valve_percent) > 55 and (weather_temperature_celsius > 12)
+        for: 2h
+        labels:
+          severity: info
+        annotations:
+          summary: "Radiators running hard ({{ $value | printf \"%.0f\" }}% avg) despite mild weather"
+          description: "Outside is above 12 °C but the heating is working — a window open, a bad schedule, or poor insulation somewhere."
+
+      - alert: EnergyCostSpike
+        expr: >
+          home:known_load_cost:eur_per_hour
+          > 3 * avg_over_time(home:known_load_cost:eur_per_hour[7d:1h])
+          and home:known_load_cost:eur_per_hour > 0.15
+        for: 30m
+        labels:
+          severity: info
+        annotations:
+          summary: "Metered running cost is 3x the weekly norm ({{ $value | printf \"%.2f\" }} EUR/h)"

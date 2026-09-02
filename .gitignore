@@ -89,3 +89,6 @@ secrets/
 # P1 backups (restic repo — never commit)
 /backups/
 !/backups/.gitkeep
+
+# deploy.sh drift-tracking state
+/.deploy-state/

@@ -120,3 +120,95 @@ def classify(
     if any(dst_a in n for n in nets):
         out.append((dst, "rx", orig_len))
     return out
+
+
+# --- L4 / traffic category (heuristic — everything is 443 these days) -----
+def frame_l4(frame: bytes) -> Tuple[int, int, int]:
+    """Return (ip_proto, src_port, dst_port). Ports 0 for non-TCP/UDP."""
+    if len(frame) < 14:
+        return 0, 0, 0
+    etype = int.from_bytes(frame[12:14], "big")
+    off = 14
+    if etype == _VLAN and len(frame) >= 18:
+        etype = int.from_bytes(frame[16:18], "big")
+        off = 18
+    if etype == _IPV4:
+        if len(frame) < off + 20:
+            return 0, 0, 0
+        ihl = (frame[off] & 0x0F) * 4
+        proto = frame[off + 9]
+        l4 = off + ihl
+    elif etype == _IPV6:
+        if len(frame) < off + 40:
+            return 0, 0, 0
+        proto = frame[off + 6]
+        l4 = off + 40
+    else:
+        return 0, 0, 0
+    if proto in (6, 17) and len(frame) >= l4 + 4:
+        return (
+            proto,
+            int.from_bytes(frame[l4 : l4 + 2], "big"),
+            int.from_bytes(frame[l4 + 2 : l4 + 4], "big"),
+        )
+    return proto, 0, 0
+
+
+_PORT_CAT = {
+    53: "dns",
+    853: "dns",
+    80: "web",
+    443: "web",
+    25: "mail",
+    465: "mail",
+    587: "mail",
+    993: "mail",
+    995: "mail",
+    110: "mail",
+    143: "mail",
+    22: "remote",
+    3389: "remote",
+    5900: "remote",
+    1194: "vpn",
+    51820: "vpn",
+    500: "vpn",
+    4500: "vpn",
+    1701: "vpn",
+    123: "ntp",
+    5228: "push",
+    5223: "push",
+}
+_GAME_RANGES = (
+    (27000, 27100),
+    (3074, 3075),
+    (3478, 3480),
+    (6672, 6672),
+    (9000, 9010),
+    (3658, 3658),
+    (30000, 45000),
+)
+
+
+def category(proto: int, sport: int, dport: int) -> str:
+    port = min((p for p in (sport, dport) if 0 < p < 1024), default=0) or dport or sport
+    if proto == 17 and 443 in (sport, dport):
+        return "quic"  # UDP/443 — mostly video / Google / Meta
+    if port in _PORT_CAT:
+        return _PORT_CAT[port]
+    if any(lo <= port <= hi for lo, hi in _GAME_RANGES) and proto == 17:
+        return "gaming"
+    if proto == 17 and sport > 1024 and dport > 1024:
+        return "p2p/rtc"
+    return "other"
+
+
+def classify_flows(
+    frame: bytes, orig_len: int, nets: List[Net]
+) -> List[Tuple[str, str, str, int]]:
+    """Like :func:`classify` but adds a traffic category:
+    [(local_ip, "tx"|"rx", category, bytes), ...]."""
+    base = classify(frame, orig_len, nets)
+    if not base:
+        return []
+    cat = category(*frame_l4(frame))
+    return [(ip, direction, cat, n) for ip, direction, n in base]

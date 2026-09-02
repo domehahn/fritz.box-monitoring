@@ -288,3 +288,36 @@ an edit (seen repeatedly). `make deploy` (= `scripts/deploy.sh`):
 
 `make check` validates only; `scripts/deploy.sh --all` force-recreates
 everything.
+
+---
+
+## lantap traffic categories (P3)
+
+`lantap` now also parses L4 and buckets bytes into a **heuristic** category —
+port-based, because almost everything is TCP/443 now:
+
+`dns` · `web` (tcp/443, 80) · `quic` (udp/443 — video / Google / Meta) ·
+`gaming` (known UDP ranges) · `mail` · `vpn` · `remote` (ssh/rdp/vnc) ·
+`ntp` · `push` · `p2p/rtc` (udp both-ends-ephemeral) · `other`
+
+Metric `lantap_host_category_bytes_total{ip,category,direction}`. Charted on
+**Network Health & Traffic Mix** (all-devices + `$device` breakdown). Treat it
+as "roughly what kind of traffic", not DPI.
+
+## Network health score (P5)
+
+`home:network_health:score` (0–1) = weighted composite of internet
+reachability (0.35), DNS (0.20), packet-loss-free (0.15), mesh health (0.20),
+exporter up (0.10). Recorded every 30 s with its five components
+(`home:health:*`). Alerts `NetworkHealthDegraded` (< 0.9, warn) /
+`NetworkHealthCritical` (< 0.6). Dashboard **Network Health & Traffic Mix** —
+one traffic-light number + a 24 h / 7 d average + the component breakdown.
+
+## Baseline / anomaly alerts (P5)
+
+`anomaly_rules.yml` (evaluated every 5 min):
+
+* `DeviceTrafficSpike` — a device downloading > 6× its own 7-day norm (and > 25 Mbit/s)
+* `WanSaturatedSustained` — WAN download > 90 % of capacity for 20 min
+* `HeatingAboveExpectation` — radiators > 55 % open while it's > 12 °C outside
+* `EnergyCostSpike` — metered running cost 3× the weekly norm
