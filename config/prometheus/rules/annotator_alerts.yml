@@ -1,0 +1,19 @@
+groups:
+  - name: annotator_alerts
+    rules:
+      - alert: AnnotatorGrafanaErrors
+        expr: increase(annotator_grafana_errors_total[15m]) > 3
+        for: 15m
+        labels:
+          severity: info
+        annotations:
+          summary: "Outage annotator can't reach the Grafana API"
+          description: "Annotations aren't being written. Check GRAFANA_PASSWORD (rotated? restart the annotator) and `docker logs …-annotator-1`."
+
+      - alert: AnnotatorStalled
+        expr: time() - annotator_last_cycle_timestamp_seconds > 600
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "Outage annotator has not run a cycle for {{ $value | humanizeDuration }}"

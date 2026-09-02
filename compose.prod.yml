@@ -766,6 +766,43 @@ services:
       timeout: 5s
       retries: 3
 
+  # --- Outage annotator (always on) ----------------------------
+  # Watches health signals; on an outage it POSTs a Grafana region annotation
+  # (tag "outage") so every dashboard shows when the line was down.
+  annotator:
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.annotator"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+    environment:
+      - PROMETHEUS_URL=http://prometheus:9090
+      - GRAFANA_URL=http://grafana:3000
+      - GRAFANA_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GRAFANA_PASSWORD=/secrets/grafana_admin_password.txt
+      - ANNOTATOR_SIGNALS=${ANNOTATOR_SIGNALS:-internet,dns}
+      - ANNOTATOR_INTERVAL_SECONDS=${ANNOTATOR_INTERVAL_SECONDS:-30}
+      - ANNOTATOR_MIN_OUTAGE_SECONDS=${ANNOTATOR_MIN_OUTAGE_SECONDS:-60}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - annotator_data:/data
+      - ./secrets:/secrets:ro
+    deploy:
+      resources:
+        limits: { cpus: '0.1', memory: 96M }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9134/healthz')\""]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+
   # --- Weekly digest -> ntfy (P6) --------------------------------
   digest:
     image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
@@ -1014,6 +1051,7 @@ volumes:
   grafana_data:
   home_iot_data:   # Blink cloud token cache (home_iot.blink)
   netwatch_data:   # persistent first-seen-per-MAC map (home_iot.netwatch)
+  annotator_data:  # open-outage-annotation ids (home_iot.annotator)
   alertmanager_data:
   victoriametrics_data:
   backup_textfile:

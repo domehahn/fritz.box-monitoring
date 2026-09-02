@@ -1060,6 +1060,33 @@ def test_netwatch_exporter_flags_new_only():
     assert 'device_known{mac="CC:CC:CC:CC:CC:CC",name="New-but-allowed"} 1' in body
 
 
+def test_annotator_transitions():
+    from home_iot.annotator.exporter import OpenAnn, transitions
+
+    # internet drops, dns fine -> one "open" for internet
+    ev = transitions({"internet": 0.0, "dns": 1.0}, {})
+    assert [(e.signal, e.kind) for e in ev] == [("internet", "open")]
+
+    # internet still down (already open) -> nothing
+    assert transitions({"internet": 0.0}, {"internet": OpenAnn(7, 100.0)}) == []
+
+    # internet recovers -> "close" carrying the annotation id
+    ev = transitions({"internet": 1.0}, {"internet": OpenAnn(7, 100.0)})
+    assert (ev[0].signal, ev[0].kind, ev[0].ann_id) == ("internet", "close", 7)
+
+    # query failed (None) -> ignored, no false outage
+    assert transitions({"internet": None}, {}) == []
+
+
+def test_annotator_config_signal_filter(monkeypatch):
+    from home_iot.annotator.exporter import AnnotatorConfig
+
+    monkeypatch.setenv("ANNOTATOR_SIGNALS", "internet, bogus ,dns")
+    assert AnnotatorConfig.from_env().signals == ("internet", "dns")
+    monkeypatch.setenv("ANNOTATOR_SIGNALS", "nope")
+    assert AnnotatorConfig.from_env().signals == ("internet",)  # fallback
+
+
 def test_bufferbloat_grade_and_summarise():
     from home_iot.bufferbloat.exporter import BufferbloatResult, grade, summarise
 
