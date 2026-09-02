@@ -1,0 +1,38 @@
+groups:
+  - name: lantap_alerts
+    rules:
+      - alert: LanTapStalled
+        expr: lantap_up == 1 and rate(lantap_frames_total[5m]) == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "lantap capture is up but no frames are being parsed"
+          description: "The FRITZ!Box stream is connected but silent for 5m — the box may have stopped the capture. It reconnects on its own; investigate if this persists."
+
+      - alert: LanTapHighParseErrors
+        expr: rate(lantap_parse_errors_total[10m]) > 0.2
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "lantap is resyncing the pcap stream often"
+          description: "{{ $value | printf \"%.2f\" }} desyncs/s for 15m — usually the FRITZ!Box dropping capture packets under load. Byte counts undercount while this lasts; consider a shorter LANTAP session or LANTAP_IFACE=3-17."
+
+      - alert: LanTapCaptureFlapping
+        expr: rate(lantap_capture_sessions_total[15m]) * 900 > 6
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "lantap keeps losing the FRITZ!Box capture session"
+          description: "{{ $value | printf \"%.0f\" }} reconnects in 15m (scheduled reconnects are ~1 every 30m). The box or the UI session is unstable."
+
+      - alert: LanTapExporterDown
+        expr: up{job="lantap"} == 0
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "lantap-exporter target is down"
+          description: "Expected if you stopped the lantap profile."

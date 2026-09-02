@@ -815,3 +815,4 @@ def test_lantap_config_subnets():
     nets = cfg.nets
     assert len(nets) == 2
     assert cfg.configured
+    assert cfg.reconnect_minutes == 30.0
