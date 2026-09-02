@@ -341,6 +341,25 @@ exporter up (0.10). Recorded every 30 s with its five components
 `NetworkHealthCritical` (< 0.6). Dashboard **Network Health & Traffic Mix** —
 one traffic-light number + a 24 h / 7 d average + the component breakdown.
 
+## Outage annotations — `home_iot.annotator`
+
+Always on, port 9134. Watches `ANNOTATOR_SIGNALS` (`internet,dns`, also
+`health`) and, on a 1→0 transition, `POST`s a **Grafana region annotation**
+(tag `outage`); on recovery it `PATCH`es in the `timeEnd`. So every dashboard
+that shows the built-in "Annotations & Alerts" layer gets a shaded band over
+each outage — old graphs keep the context *"the line was down here"*.
+
+* Blips shorter than `ANNOTATOR_MIN_OUTAGE_SECONDS` (60) are **deleted** rather
+  than left as a 5-second scar on every chart.
+* Open-annotation ids persist in `annotator_data:/data`, so a restart
+  mid-outage still closes them.
+* Uses `secrets/grafana_admin_password.txt` for the Grafana API — **restart the
+  `annotator` container after `make rotate-grafana`**.
+* Metrics `annotator_{up,outage_active,annotations_created_total,
+  annotations_closed_total,grafana_errors_total}`. Alerts
+  `AnnotatorGrafanaErrors`, `AnnotatorStalled`.
+* Filter to just these in Grafana with the annotation query tag `outage`.
+
 ## ISP SLA tracking
 
 `isp_sla_rules.yml` compares each speed test (`compose --profile speedtest`) to
