@@ -1,4 +1,4 @@
-.PHONY: install lint format typecheck test security compose-validate smoke deploy check backup-now check-secrets scan-now rotate-grafana lint-dashboards cardinality all
+.PHONY: install lint format typecheck test security compose-validate smoke deploy check backup-now check-secrets scan-now rotate-grafana lint-dashboards cardinality isp-report all
 
 VENV_BIN ?= $(shell poetry env info --path 2>/dev/null)/bin
 PYTHON ?= $(VENV_BIN)/python
@@ -53,6 +53,9 @@ scan-now:
 
 lint-dashboards:
 	python3 scripts/lint-dashboards.py
+
+isp-report:
+	bash scripts/isp-report.sh $(MONTH)
 
 cardinality:
 	bash scripts/cardinality-report.sh

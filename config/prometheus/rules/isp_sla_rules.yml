@@ -1,0 +1,80 @@
+groups:
+  # ---------------------------------------------------------------------------
+  # ISP SLA — are we getting the speed we pay for? Needs the speedtest profile
+  # (compose --profile speedtest) for the measured side.
+  #
+  # Reference capacity defaults to what the FRITZ!Box reports as the line max
+  # (fritz_router_max_byte_rate_*). To compare against the *contracted* rate
+  # instead, set the two vectors below to your contract's Mbit/s.
+  # ---------------------------------------------------------------------------
+  - name: isp_contract
+    interval: 1m
+    rules:
+      # EDIT THESE to your contract (Mbit/s), or leave as-is to use the
+      # FRITZ!Box-reported line rate.
+      - record: isp:contract:down_mbps
+        expr: vector(0)
+      - record: isp:contract:up_mbps
+        expr: vector(0)
+
+  - name: isp_sla_recording
+    interval: 1m
+    rules:
+      - record: isp:reference:down_mbps
+        expr: >
+          (isp:contract:down_mbps > 0)
+          or (fritz_router_max_byte_rate_down * 8 / 1e6)
+      - record: isp:reference:up_mbps
+        expr: >
+          (isp:contract:up_mbps > 0)
+          or (fritz_router_max_byte_rate_up * 8 / 1e6)
+
+      - record: isp:measured:down_mbps
+        expr: speedtest_download_bits_per_second / 1e6
+      - record: isp:measured:up_mbps
+        expr: speedtest_upload_bits_per_second / 1e6
+
+      # 0..1+ — fraction of the reference actually delivered, per measurement
+      - record: isp:attainment:down_ratio
+        expr: >
+          isp:measured:down_mbps
+          / on() group_left clamp_min(isp:reference:down_mbps, 1)
+      - record: isp:attainment:up_ratio
+        expr: >
+          isp:measured:up_mbps
+          / on() group_left clamp_min(isp:reference:up_mbps, 1)
+
+      - record: isp:attainment:down_ratio:avg7d
+        expr: avg_over_time(isp:attainment:down_ratio[7d])
+      - record: isp:attainment:down_ratio:avg30d
+        expr: avg_over_time(isp:attainment:down_ratio[30d])
+      - record: isp:attainment:up_ratio:avg30d
+        expr: avg_over_time(isp:attainment:up_ratio[30d])
+
+  - name: isp_sla_alerts
+    rules:
+      - alert: ISPSpeedBelowContract
+        expr: isp:attainment:down_ratio < 0.7
+        for: 90m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Download is {{ $value | humanizePercentage }} of the line rate"
+          description: "Two+ consecutive speed tests came in under 70% of the reference. Screenshot the ISP SLA panels before calling support."
+
+      - alert: ISPSpeedChronicallyLow
+        expr: isp:attainment:down_ratio:avg7d < 0.85
+        for: 6h
+        labels:
+          severity: info
+        annotations:
+          summary: "7-day average download is {{ $value | humanizePercentage }} of the line rate"
+          description: "Sustained under-delivery — grounds for a complaint. `scripts/isp-report.sh` exports the month's measurements as CSV."
+
+      - alert: ISPUploadBelowContract
+        expr: isp:attainment:up_ratio < 0.7
+        for: 90m
+        labels:
+          severity: info
+        annotations:
+          summary: "Upload is {{ $value | humanizePercentage }} of the line rate"

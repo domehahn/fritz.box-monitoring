@@ -341,6 +341,24 @@ exporter up (0.10). Recorded every 30 s with its five components
 `NetworkHealthCritical` (< 0.6). Dashboard **Network Health & Traffic Mix** —
 one traffic-light number + a 24 h / 7 d average + the component breakdown.
 
+## ISP SLA tracking
+
+`isp_sla_rules.yml` compares each speed test (`compose --profile speedtest`) to
+a **reference line rate** — by default `fritz_router_max_byte_rate_*` from the
+box, or your contracted Mbit/s if you edit the two `vector(...)` lines in that
+file.
+
+* Recorded: `isp:measured:{down,up}_mbps`, `isp:reference:{down,up}_mbps`,
+  `isp:attainment:{down,up}_ratio` (per test) and `…:avg7d` / `…:avg30d`.
+* Alerts: `ISPSpeedBelowContract` (2+ tests < 70 %), `ISPSpeedChronicallyLow`
+  (7-day avg < 85 % — grounds for a complaint), `ISPUploadBelowContract`.
+* The **monthly digest** gains an *"ISP SLA (evidence)"* line (avg %, worst,
+  count below 80 %).
+* `make isp-report MONTH=2026-08` (`scripts/isp-report.sh`) exports every
+  measurement that month as CSV from VictoriaMetrics — attach it to the
+  complaint.
+* Panels: **Network Path Probes** → *ISP SLA* row.
+
 ## External probe (from the internet) — GitHub Actions
 
 Every internal probe runs from inside the LAN, so it structurally can't see an
