@@ -341,6 +341,32 @@ exporter up (0.10). Recorded every 30 s with its five components
 `NetworkHealthCritical` (< 0.6). Dashboard **Network Health & Traffic Mix** —
 one traffic-light number + a 24 h / 7 d average + the component breakdown.
 
+## SLOs & error budgets
+
+`slo_rules.yml` turns the raw health signals into real service-level objectives
+with Google-workbook multi-window burn-rate alerts.
+
+| SLO | target (30 d) | SLI |
+|---|---|---|
+| `internet_availability` | 99.5 % | `home:health:internet_reachability` |
+| `dns_availability` | 99.9 % | `home:health:dns` |
+| `internet_latency` | 99 % | internet ICMP probe RTT < 30 ms |
+
+* SLIs are a 0..1 "good" gauge (`slo:sli:good{slo}`) sampled every 30 s;
+  everything joins on the `{slo}` label.
+* Recorded: `slo:error_ratio:rate{5m,30m,1h,6h,3d}`,
+  `slo:attainment:ratio30d`, `slo:budget_consumed:ratio30d`,
+  `slo:budget_remaining:ratio30d`, `slo:burn_rate:{5m,30m,1h,6h}`.
+* Alerts: **`SLOFastBurn`** (1 h & 5 m burn ≥ 14.4 → critical, budget gone in
+  ~2 d), **`SLOSlowBurn`** (6 h & 30 m burn ≥ 6 → warning, ~5 d),
+  `SLOBudgetExhausted` (30 d attainment already below target).
+* Dashboard **SLOs & Error Budgets** (`/d/home_slo`) — attainment tiles,
+  budget-remaining bar gauge, burn-rate charts with the 6× / 14.4× lines, and
+  a status table.
+
+Change a target by editing the `slo:target:ratio` `vector(...)` in
+`slo_rules.yml`.
+
 ## Baseline / anomaly alerts (P5)
 
 `anomaly_rules.yml` (evaluated every 5 min):
