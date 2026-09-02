@@ -1,0 +1,146 @@
+# Part of the fritz-monitoring stack — included by ../compose.prod.yml.
+# Do not run this file directly; use  docker compose -f compose.prod.yml …
+services:
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    restart: unless-stopped
+    command:
+      - '--path.rootfs=/host'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+      - '--collector.textfile.directory=/textfile'
+    networks:
+      - backend
+    volumes:
+      - /:/host:ro,rslave
+      - backup_textfile:/textfile:ro   # backup_last_success_timestamp_seconds etc.
+    deploy:
+      resources:
+        limits: { cpus: '0.2', memory: 64M }
+
+  # P1 — restic backup of every data volume + config/secrets/.env. Writes a
+  # Prometheus textfile that node-exporter picks up. Local repo by default
+  # (point BACKUP_DIR at a NAS mount); set RESTIC_REPOSITORY=b2:... for cloud.
+  dockerstats-exporter:
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.dockerstats"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+    environment:
+      - DOCKER_HOST=tcp://docker-socket-proxy:2375
+      - DOCKERSTATS_INTERVAL_SECONDS=${DOCKERSTATS_INTERVAL_SECONDS:-20}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    depends_on:
+      - docker-socket-proxy
+    deploy:
+      resources:
+        limits: { cpus: '0.3', memory: 128M }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9126/healthz')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # --- Per-device bandwidth via the FRITZ!Box packet capture (opt-in) ---
+  # Streams a live pcap of the LAN bridge and counts bytes per local IP.
+  # LOADS THE FRITZ!Box CPU — keep sessions short / set LANTAP_MAX_MINUTES.
+  docker-socket-proxy:
+    image: ghcr.io/tecnativa/docker-socket-proxy:0.3
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - backend
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - CONTAINERS=1      # list + inspect + /stats (GET)
+      - IMAGES=1          # trivy image scan
+      - INFO=1
+      - POST=0            # no writes
+      - EXEC=0
+      - VOLUMES=0
+      - NETWORKS=0
+    deploy:
+      resources:
+        limits: { cpus: '0.2', memory: 48M }
+
+  backup:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backup
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      # read every file in the data volumes regardless of owner/mode
+      - DAC_READ_SEARCH
+    environment:
+      - RESTIC_REPOSITORY=${RESTIC_REPOSITORY:-/repo}
+      - RESTIC_PASSWORD_FILE=/run/secrets/restic_password
+      - BACKUP_INTERVAL_HOURS=${BACKUP_INTERVAL_HOURS:-24}
+      - RESTIC_KEEP=${RESTIC_KEEP:---keep-daily 7 --keep-weekly 4 --keep-monthly 6}
+      - B2_ACCOUNT_ID=${B2_ACCOUNT_ID:-}
+      - B2_ACCOUNT_KEY=${B2_ACCOUNT_KEY:-}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+    volumes:
+      - ${BACKUP_DIR:-./backups}:/repo
+      - backup_textfile:/textfile
+      - grafana_data:/data/grafana_data:ro
+      - prometheus_data:/data/prometheus_data:ro
+      - victoriametrics_data:/data/victoriametrics_data:ro
+      - loki_data:/data/loki_data:ro
+      - alertmanager_data:/data/alertmanager_data:ro
+      - home_iot_data:/data/home_iot_data:ro
+      - ./config:/project/config:ro
+      - ./secrets:/project/secrets:ro
+      - ./compose.prod.yml:/project/compose.prod.yml:ro
+      - ./compose:/project/compose:ro
+      - ./.env.production:/project/.env.production:ro
+    secrets:
+      - restic_password
+    deploy:
+      resources:
+        limits: { cpus: '0.5', memory: 256M }
+
+  # Per-container CPU/memory/network/restarts straight off the Docker Engine
+  # API socket. Replaces cAdvisor, which cannot read the overlay2 layer DB on
+  # Docker Desktop / macOS and there returns only the root cgroup.
+  # Read-only, filtered Docker API. The ONLY container that touches the raw
+  # socket; dockerstats + trivy go through it and need no socket / root.
+  trivy:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.trivy
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress   # trivy DB / advisory feed
+    environment:
+      - DOCKER_HOST=tcp://docker-socket-proxy:2375
+      - TRIVY_INTERVAL_HOURS=${TRIVY_INTERVAL_HOURS:-168}
+    volumes:
+      - backup_textfile:/textfile
+      - trivy_cache:/cache
+    depends_on:
+      - docker-socket-proxy
+    deploy:
+      resources:
+        limits: { cpus: '1.0', memory: 768M }
+
+  # --- Reverse proxy (P4, opt-in) ---------------------------------
+  # HTTPS + one hostname for Grafana. `docker compose --profile proxy up -d`.
