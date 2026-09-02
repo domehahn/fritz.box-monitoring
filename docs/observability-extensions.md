@@ -341,6 +341,26 @@ exporter up (0.10). Recorded every 30 s with its five components
 `NetworkHealthCritical` (< 0.6). Dashboard **Network Health & Traffic Mix** —
 one traffic-light number + a 24 h / 7 d average + the component breakdown.
 
+## Bufferbloat — latency under load
+
+`compose --profile bufferbloat`, port 9132. Speedtest measures the pipe;
+this measures whether it **chokes when full** — the thing that actually breaks
+video calls and gaming. Every `BUFFERBLOAT_INTERVAL_SECONDS` (900):
+
+1. sample TCP-connect latency to `BUFFERBLOAT_TARGET_HOST:PORT` (1.1.1.1:443) idle,
+2. again during a large `speed.cloudflare.com` download,
+3. again during an upload.
+
+Metrics: `bufferbloat_{idle,loaded_down,loaded_up}_latency_seconds{quantile}`,
+`bufferbloat_increase_{down,up}_seconds` (loaded p50 − idle p50),
+`bufferbloat_grade` (0=A none … 4=F severe), `bufferbloat_{download,upload}_mbps`.
+Alerts `BufferbloatHigh` (+100 ms, info), `BufferbloatSevere` (grade F, warn),
+`BufferbloatProbeStale`. Panels are in **Network Path Probes** (`/d/fritz_probes`).
+
+Moves a few hundred MB per run (interval floored at 300 s). The fix for
+bufferbloat is Smart Queue Management (`cake` / `fq_codel`) on the router, or a
+bandwidth cap ~90 % of the line.
+
 ## SLOs & error budgets
 
 `slo_rules.yml` turns the raw health signals into real service-level objectives

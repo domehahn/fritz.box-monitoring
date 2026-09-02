@@ -1,0 +1,29 @@
+groups:
+  - name: bufferbloat_alerts
+    rules:
+      - alert: BufferbloatHigh
+        expr: bufferbloat_increase_down_seconds > 0.1 or bufferbloat_increase_up_seconds > 0.1
+        for: 20m
+        labels:
+          severity: info
+        annotations:
+          summary: "Latency rises {{ $value | humanizeDuration }} under load (bufferbloat grade D+)"
+          description: "The line is choking when full — video calls and gaming will stutter while anything downloads/uploads. Enable Smart Queue Management (fq_codec / cake) on the router or set a bandwidth cap."
+
+      - alert: BufferbloatSevere
+        expr: bufferbloat_grade >= 4
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Severe bufferbloat (grade F) sustained"
+          description: "Loaded latency is > 200 ms above idle. The connection is barely usable under load."
+
+      - alert: BufferbloatProbeStale
+        expr: time() - bufferbloat_last_run_timestamp_seconds > 3600
+        for: 15m
+        labels:
+          severity: info
+        annotations:
+          summary: "No bufferbloat measurement for {{ $value | humanizeDuration }}"
+          description: "The bufferbloat-exporter has not completed a run. Check its logs."
