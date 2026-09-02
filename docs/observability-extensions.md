@@ -367,16 +367,22 @@ can open dashboards from a phone without exposing the plain-HTTP port.
 Caddy binds `:80`/`:443` on `${PROXY_BIND_ADDRESS:-0.0.0.0}`; Grafana's
 `127.0.0.1:3000` stays as-is for local use.
 
-## Weekly digest (P6) — `digest`
+## Digest (P6) — `digest`
 
 Every `DIGEST_DAY`/`DIGEST_HOUR` (Mon 09:00) the `digest` service queries
 Prometheus and pushes a summary to the P0 ntfy topic: network-health avg/worst,
-internet reachability, worst packet loss, top bandwidth devices (7 d), average
+internet reachability, worst packet loss, top bandwidth devices, average
 electricity price + metered kWh, distinct alerts fired, disk projection, backup
-age. `GET/POST http://digest:9130/run` fires one now
-(`docker exec …-digest-1 wget -qO- --post-data='' localhost:9130/run`).
-`digest_last_run_success` / `_timestamp_seconds` / `_next_run_timestamp_seconds`
-are scraped.
+age.
+
+* **Monthly** (`DIGEST_MONTHLY`, on by default) — the same report over a 30-day
+  window on `DIGEST_MONTHLY_DAY` (1st) at `DIGEST_MONTHLY_HOUR`, titled
+  "📊 Monthly network digest".
+* **Fire now**: `GET/POST http://digest:9130/run` (weekly), or
+  `…/run?period=monthly`
+  (`docker exec …-digest-1 wget -qO- --post-data='' 'localhost:9130/run?period=monthly'`).
+* Scraped: `digest_last_run_success` / `_timestamp_seconds`,
+  `digest_next_run_timestamp_seconds{period="Weekly"|"Monthly"}`.
 
 ---
 
@@ -431,3 +437,12 @@ The monitoring stack now watches **itself**.
   and CI) — every provisioned dashboard is checked for unknown datasource uids,
   `${DS_}`/`__inputs` export leftovers, data panels with no targets, targets
   with an empty expr, and duplicate dashboard/panel ids.
+
+## Kiosk dashboard
+
+`kiosk.json` (uid `home_kiosk`, "Home Status (Kiosk)") — one phone-sized screen
+of coloured stat tiles: network health, active warning/critical alerts, internet,
+WAN up/down, house power, current spot price, home/away (from `home:occupied:bool`),
+indoor/outdoor °C, open windows, low camera batteries. Point a wall tablet at
+`/d/home_kiosk?kiosk` (30 s refresh). Everything comes from existing recording
+rules and exporters; a metric that is not wired yet just shows "n/a".
