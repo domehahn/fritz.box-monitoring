@@ -50,6 +50,7 @@ Production-grade observability stack for AVM FRITZ!Box routers, mesh repeaters, 
 - [iperf3 LAN reference (opt-in)](docs/iperf-reference.md)
 - [Smart-home exporters — Hue / Bosch / Blink / FRITZ!DECT (opt-in)](docs/smart-home-exporters.md)
 - [Observability extensions — host/container, room climate, weather, speedtest, box event log (P1–P5)](docs/observability-extensions.md)
+- [Feature map — exporter → rules → dashboard → alerts, per slice](docs/features.md)
 - [Troubleshooting Playbook](docs/troubleshooting.md)
 
 Primary dashboards: **Home Network NOC** (`/d/fritz_noc`), **Client Diagnostics**

@@ -1,0 +1,265 @@
+# Part of the fritz-monitoring stack — included by ../compose.prod.yml.
+# Do not run this file directly; use  docker compose -f compose.prod.yml …
+services:
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+    volumes:
+      - ./config/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    deploy:
+      resources:
+        limits: { cpus: '0.25', memory: 96M }
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9093/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Alertmanager webhook -> ntfy push. Needs internet (ntfy.sh) unless NTFY_URL
+  # points at a LAN server.
+  alertbridge:
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.alertbridge"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - NTFY_URL=${NTFY_URL:-https://ntfy.sh}
+      - NTFY_TOPIC=${NTFY_TOPIC:-}
+      - NTFY_TOKEN=${NTFY_TOKEN:-}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    deploy:
+      resources:
+        limits: { cpus: '0.2', memory: 96M }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9127/healthz')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # --- Weather (P3) ---------------------------------------------------
+  # DWD data via Bright Sky (api.brightsky.dev) — no API key. Set WEATHER_LAT /
+  # WEATHER_LON in .env.production to your location.
+  annotator:
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.annotator"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+    environment:
+      - PROMETHEUS_URL=http://prometheus:9090
+      - GRAFANA_URL=http://grafana:3000
+      - GRAFANA_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GRAFANA_PASSWORD=/secrets/grafana_admin_password.txt
+      - ANNOTATOR_SIGNALS=${ANNOTATOR_SIGNALS:-internet,dns}
+      - ANNOTATOR_INTERVAL_SECONDS=${ANNOTATOR_INTERVAL_SECONDS:-30}
+      - ANNOTATOR_MIN_OUTAGE_SECONDS=${ANNOTATOR_MIN_OUTAGE_SECONDS:-60}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - annotator_data:/data
+      - ./secrets:/secrets:ro
+    deploy:
+      resources:
+        limits: { cpus: '0.1', memory: 96M }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9134/healthz')\""]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+
+  # --- Weekly digest -> ntfy (P6) --------------------------------
+  digest:
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.digest"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - PROMETHEUS_URL=http://prometheus:9090
+      - NTFY_URL=${NTFY_URL:-https://ntfy.sh}
+      - NTFY_TOPIC=${NTFY_TOPIC:-}
+      - NTFY_TOKEN=${NTFY_TOKEN:-}
+      - DIGEST_DAY=${DIGEST_DAY:-0}
+      - DIGEST_HOUR=${DIGEST_HOUR:-9}
+      - DIGEST_WINDOW=${DIGEST_WINDOW:-7d}
+      - DIGEST_MONTHLY=${DIGEST_MONTHLY:-true}
+      - DIGEST_MONTHLY_DAY=${DIGEST_MONTHLY_DAY:-1}
+      - DIGEST_MONTHLY_HOUR=${DIGEST_MONTHLY_HOUR:-9}
+      - DIGEST_MONTHLY_WINDOW=${DIGEST_MONTHLY_WINDOW:-30d}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    deploy:
+      resources:
+        limits: { cpus: '0.2', memory: 96M }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9130/healthz')\""]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+
+  # --- Home automation (opt-in, DRY-RUN by default) ---------------
+  # Reads Prometheus and, only if AUTOMATION_DRY_RUN=false, nudges the Bosch
+  # SHC / Hue bridge (heating setback when away, lights off when away).
+  automation:
+    profiles: [automation]
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.automation"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - PROMETHEUS_URL=http://prometheus:9090
+      - AUTOMATION_DRY_RUN=${AUTOMATION_DRY_RUN:-true}
+      - AUTOMATION_INTERVAL_SECONDS=${AUTOMATION_INTERVAL_SECONDS:-300}
+      - AUTOMATION_AWAY_MINUTES=${AUTOMATION_AWAY_MINUTES:-45}
+      - AUTOMATION_SETBACK_C=${AUTOMATION_SETBACK_C:-17}
+      - AUTOMATION_COMFORT_C=${AUTOMATION_COMFORT_C:-21}
+      - AUTOMATION_LIGHTS_AWAY_MINUTES=${AUTOMATION_LIGHTS_AWAY_MINUTES:-20}
+      - BOSCH_SHC_HOST=${BOSCH_SHC_HOST:-}
+      - BOSCH_SHC_CERT_FILE=${BOSCH_SHC_CERT_FILE:-/secrets/bosch-shc-cert.pem}
+      - BOSCH_SHC_KEY_FILE=${BOSCH_SHC_KEY_FILE:-/secrets/bosch-shc-key.pem}
+      - HUE_BRIDGE_HOST=${HUE_BRIDGE_HOST:-}
+      - HUE_APP_KEY=${HUE_APP_KEY:-/secrets/hue_app_key.txt}
+      - NTFY_URL=${NTFY_URL:-https://ntfy.sh}
+      - NTFY_TOPIC=${NTFY_TOPIC:-}
+      - NTFY_TOKEN=${NTFY_TOKEN:-}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./secrets:/secrets:ro
+    deploy:
+      resources:
+        limits: { cpus: '0.2', memory: 128M }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9131/healthz')\""]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+
+  # --- Alerting (P0) ------------------------------------------------
+  device-manager:
+    profiles:
+      - admin
+    image: ghcr.io/domehahn/fritz-box-monitoring/device-manager:v1.0.0
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    ports:
+      - "127.0.0.1:5000:5000"
+    networks:
+      - backend
+      - fritz_egress
+      - ingress
+    environment:
+      - FRITZ_HOST=${FRITZ_HOST:-192.168.178.1}
+      - FRITZ_PORT=${FRITZ_PORT:-49000}
+      - FRITZ_USERNAME=${FRITZ_ADMIN_USERNAME:-${FRITZ_USERNAME:-}}
+      - FRITZ_PASSWORD_FILE=/run/secrets/fritz_admin_password
+      - DEVICE_MANAGER_ADMIN_PASSWORD_FILE=/run/secrets/device_manager_admin_password
+      - DEVICE_MANAGER_SECRET_KEY_FILE=/run/secrets/device_manager_secret_key
+      - FLASK_ENV=production
+      # Mark the session cookie Secure so it is only sent over HTTPS. Keep the
+      # default (false) ONLY while reaching the Device Manager directly on the
+      # plain-HTTP 127.0.0.1:5000 bind below; set to true once it sits behind a
+      # TLS-terminating reverse proxy (a Secure cookie is dropped over plain HTTP,
+      # which breaks the session login and CSRF token).
+      - SESSION_COOKIE_SECURE=${DEVICE_MANAGER_SESSION_COOKIE_SECURE:-false}
+    secrets:
+      - fritz_admin_password
+      - device_manager_admin_password
+      - device_manager_secret_key
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:5000/healthz')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # --- Smart-home exporters (opt-in) --------------------------------------
+  # Start all four:  docker compose --profile smarthome up -d
+  # Start just one:  docker compose --profile hue up -d   (bosch|blink|fritzdect)
+  # Each serves /metrics on its own port; Prometheus scrapes them over `backend`.
+  # They stay healthy with no credentials (serving *_configured=0) so it is safe
+  # to enable the profile before pairing every hub.
+
+  caddy:
+    profiles: [proxy]
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    ports:
+      # standard :443 by default; set PROXY_HTTPS_PORT if 443 is taken on the host
+      - "${PROXY_BIND_ADDRESS:-0.0.0.0}:${PROXY_HTTPS_PORT:-443}:443"
+    networks:
+      - backend
+      - ingress
+    volumes:
+      - ./config/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - PROXY_DOMAIN=${PROXY_DOMAIN:-localhost}
+      - PROXY_TLS=${PROXY_TLS:-internal}
+    deploy:
+      resources:
+        limits: { cpus: '0.3', memory: 96M }
+    healthcheck:
+      test: ["CMD", "wget", "--no-check-certificate", "--spider", "-q", "https://localhost/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # --- New-device watch (always on) -----------------------------
+  # Polls fritz_device_up, keeps a persistent first-seen map per MAC, and
+  # flags devices first seen < NETWATCH_NEW_DAYS ago. Allowlist:
+  # home_iot_data:/data/known_devices.txt (one MAC or name-substring per line).

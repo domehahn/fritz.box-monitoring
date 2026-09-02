@@ -77,31 +77,11 @@ jobs:
           docker run --rm -v "$PWD/config:/config:ro" \
             --entrypoint promtool prom/prometheus:v2.54.1 \
             check config /config/prometheus.yml
+          # glob, not a hand-maintained list — a new rules file is picked up
+          # automatically (matches how prometheus.yml and deploy.sh load them)
           docker run --rm -v "$PWD/config:/config:ro" \
-            --entrypoint promtool prom/prometheus:v2.54.1 \
-            check rules /config/prometheus/rules/fritz_alerts.yml \
-                        /config/prometheus/rules/fritz_recording_rules.yml \
-                        /config/prometheus/rules/probe_rules.yml \
-                        /config/prometheus/rules/smarthome_alerts.yml \
-                        /config/prometheus/rules/climate_rules.yml \
-                        /config/prometheus/rules/climate_alerts.yml \
-                        /config/prometheus/rules/host_alerts.yml \
-                        /config/prometheus/rules/http_probe_rules.yml \
-                        /config/prometheus/rules/energy_rules.yml \
-                        /config/prometheus/rules/occupancy_rules.yml \
-                        /config/prometheus/rules/lantap_alerts.yml \
-                        /config/prometheus/rules/backup_alerts.yml \
-                        /config/prometheus/rules/health_rules.yml \
-                        /config/prometheus/rules/anomaly_rules.yml \
-                        /config/prometheus/rules/security_alerts.yml \
-                        /config/prometheus/rules/watchdog.yml \
-                        /config/prometheus/rules/meta_rules.yml \
-                        /config/prometheus/rules/automation_alerts.yml \
-                        /config/prometheus/rules/slo_rules.yml \
-                        /config/prometheus/rules/bufferbloat_alerts.yml \
-                        /config/prometheus/rules/netwatch_alerts.yml \
-                        /config/prometheus/rules/isp_sla_rules.yml \
-                        /config/prometheus/rules/annotator_alerts.yml
+            --entrypoint sh prom/prometheus:v2.54.1 \
+            -c 'promtool check rules /config/prometheus/rules/*.yml'
 
       - name: Validate Caddyfile
         run: |

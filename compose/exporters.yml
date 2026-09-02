@@ -1,0 +1,379 @@
+# Part of the fritz-monitoring stack — included by ../compose.prod.yml.
+# Do not run this file directly; use  docker compose -f compose.prod.yml …
+services:
+  hue-exporter:
+    profiles: [smarthome, hue]
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.hue"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - HUE_BRIDGE_HOST=${HUE_BRIDGE_HOST:-}
+      # literal key, or a path to a file holding it (e.g. /secrets/hue_app_key.txt)
+      - HUE_APP_KEY=${HUE_APP_KEY:-}
+      - HUE_VERIFY_TLS=${HUE_VERIFY_TLS:-false}
+      - HUE_CA_FILE=${HUE_CA_FILE:-}
+      - HUE_INTERVAL_SECONDS=${HUE_INTERVAL_SECONDS:-60}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./secrets:/secrets:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 128M
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9120/healthz')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  bosch-exporter:
+    profiles: [smarthome, bosch]
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.bosch"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - BOSCH_SHC_HOST=${BOSCH_SHC_HOST:-}
+      - BOSCH_SHC_CERT_FILE=${BOSCH_SHC_CERT_FILE:-/secrets/bosch-shc-cert.pem}
+      - BOSCH_SHC_KEY_FILE=${BOSCH_SHC_KEY_FILE:-/secrets/bosch-shc-key.pem}
+      - BOSCH_INTERVAL_SECONDS=${BOSCH_INTERVAL_SECONDS:-60}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./secrets:/secrets:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 192M
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9121/healthz')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  blink-exporter:
+    profiles: [smarthome, blink]
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.blink"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - BLINK_USERNAME=${BLINK_USERNAME:-}
+      - BLINK_PASSWORD=${BLINK_PASSWORD:-}
+      - BLINK_2FA_KEY=${BLINK_2FA_KEY:-}
+      - BLINK_CREDENTIALS_FILE=${BLINK_CREDENTIALS_FILE:-/data/blink.json}
+      - BLINK_INTERVAL_SECONDS=${BLINK_INTERVAL_SECONDS:-600}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - home_iot_data:/data
+      - ./secrets:/secrets:ro   # BLINK_PASSWORD may point at /secrets/blink_password.txt
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 192M
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9122/healthz')\""]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+
+  fritzdect-exporter:
+    profiles: [smarthome, fritzdect]
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.fritzdect"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - FRITZ_HOST=${FRITZ_HOST:-192.168.178.1}
+      - FRITZ_PORT=${FRITZ_PORT:-49000}
+      - FRITZ_USERNAME=${FRITZ_MONITOR_USERNAME:-}
+      - FRITZ_PASSWORD_FILE=/run/secrets/fritz_monitor_password
+      - FRITZ_USE_TLS=${FRITZ_USE_TLS:-false}
+      - FRITZDECT_INTERVAL_SECONDS=${FRITZDECT_INTERVAL_SECONDS:-60}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    secrets:
+      - fritz_monitor_password
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 128M
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9123/healthz')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # --- Host & container monitoring (P1) --------------------------------
+  # Always on. cAdvisor = per-container CPU/mem/net/restarts (works on any OS).
+  # node-exporter = the host the engine runs on; on Docker Desktop / macOS that
+  # is the Linux VM, not the Mac, but its disk/memory headroom is still what the
+  # stack actually runs in.
+  weather-exporter:
+    profiles: [smarthome, weather]
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.weather"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - WEATHER_LAT=${WEATHER_LAT:-}
+      - WEATHER_LON=${WEATHER_LON:-}
+      - WEATHER_STATION=${WEATHER_STATION:-}
+      - WEATHER_INTERVAL_SECONDS=${WEATHER_INTERVAL_SECONDS:-300}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    deploy:
+      resources:
+        limits: { cpus: '0.2', memory: 96M }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9124/healthz')\""]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+
+  # --- Speedtest (P4) ----------------------------------------------
+  # Cloudflare speed test — no external binary. Bandwidth-heavy: interval
+  # floored at 1800s. Opt-in (profile: speedtest).
+  energy-exporter:
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.energy"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - ENERGY_MARKET=${ENERGY_MARKET:-awattar_de}
+      - ENERGY_VAT=${ENERGY_VAT:-1.19}
+      - ENERGY_SURCHARGE_CT_KWH=${ENERGY_SURCHARGE_CT_KWH:-0}
+      - TIBBER_TOKEN=${TIBBER_TOKEN:-}
+      - SHELLY_HOST=${SHELLY_HOST:-}
+      - ENERGY_INTERVAL_SECONDS=${ENERGY_INTERVAL_SECONDS:-120}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    deploy:
+      resources:
+        limits: { cpus: '0.2', memory: 96M }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9128/healthz')\""]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+
+  # P1 — weekly CVE scan of the running images -> node-exporter textfile.
+  lantap-exporter:
+    profiles: [lantap]
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.lantap"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - FRITZ_HOST=${FRITZ_HOST:-192.168.178.1}
+      - FRITZ_USERNAME=${FRITZ_ADMIN_USERNAME:-${FRITZ_MONITOR_USERNAME:-}}
+      - FRITZ_PASSWORD_FILE=/run/secrets/fritz_admin_password
+      - LANTAP_IFACE=${LANTAP_IFACE:-1-lan}
+      - LANTAP_SNAPLEN=${LANTAP_SNAPLEN:-128}
+      - LANTAP_SUBNETS=${LANTAP_SUBNETS:-192.168.178.0/24}
+      - LANTAP_MAX_MINUTES=${LANTAP_MAX_MINUTES:-0}
+      - LANTAP_RECONNECT_MINUTES=${LANTAP_RECONNECT_MINUTES:-30}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    secrets:
+      - fritz_admin_password
+    deploy:
+      resources:
+        limits: { cpus: '0.75', memory: 160M }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9129/healthz')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # --- Energy price + optional meter (P3) --------------------------
+  # aWATTar spot price works with zero config (DE/AT). Add a Tibber token or a
+  # Shelly EM IP for real consumption. Always on; degrades to energy_up=0.
+  netwatch-exporter:
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.netwatch"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+    environment:
+      - PROMETHEUS_URL=http://prometheus:9090
+      - NETWATCH_NEW_DAYS=${NETWATCH_NEW_DAYS:-7}
+      - NETWATCH_INTERVAL_SECONDS=${NETWATCH_INTERVAL_SECONDS:-60}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - netwatch_data:/data
+    deploy:
+      resources:
+        limits: { cpus: '0.1', memory: 64M }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9133/healthz')\""]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+
+  # --- Outage annotator (always on) ----------------------------
+  # Watches health signals; on an outage it POSTs a Grafana region annotation
+  # (tag "outage") so every dashboard shows when the line was down.
+  speedtest-exporter:
+    profiles: [speedtest]
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.speedtest"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - SPEEDTEST_INTERVAL_SECONDS=${SPEEDTEST_INTERVAL_SECONDS:-3600}
+      - SPEEDTEST_MAX_MB=${SPEEDTEST_MAX_MB:-100}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    deploy:
+      resources:
+        limits: { cpus: '0.5', memory: 128M }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9125/healthz')\""]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+
+  # Latency-under-load (bufferbloat). Moves a few hundred MB per run — interval
+  # floored at 300s, default 900s. Opt-in (profile: bufferbloat).
+  bufferbloat-exporter:
+    profiles: [bufferbloat]
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.bufferbloat"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - BUFFERBLOAT_INTERVAL_SECONDS=${BUFFERBLOAT_INTERVAL_SECONDS:-900}
+      - BUFFERBLOAT_TARGET_HOST=${BUFFERBLOAT_TARGET_HOST:-1.1.1.1}
+      - BUFFERBLOAT_TARGET_PORT=${BUFFERBLOAT_TARGET_PORT:-443}
+      - BUFFERBLOAT_LOAD_SECONDS=${BUFFERBLOAT_LOAD_SECONDS:-8}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    deploy:
+      resources:
+        limits: { cpus: '0.5', memory: 128M }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9132/healthz')\""]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+
+  iperf-probe:
+    profiles:
+      - iperf
+    image: ghcr.io/domehahn/fritz-box-monitoring/iperf-probe:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.iperf
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - IPERF_TARGET=${IPERF_TARGET:-}
+      - IPERF_PORT=${IPERF_PORT:-5201}
+      - IPERF_INTERVAL_SECONDS=${IPERF_INTERVAL_SECONDS:-21600}
+      - IPERF_DURATION_SECONDS=${IPERF_DURATION_SECONDS:-5}
+      - IPERF_BITRATE=${IPERF_BITRATE:-}
+      - IPERF_REVERSE=${IPERF_REVERSE:-false}
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9119/healthz')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+

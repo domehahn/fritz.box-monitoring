@@ -1,0 +1,295 @@
+# Part of the fritz-monitoring stack — included by ../compose.prod.yml.
+# Do not run this file directly; use  docker compose -f compose.prod.yml …
+services:
+  fritz-exporter:
+    image: ghcr.io/domehahn/fritz-box-monitoring/exporter:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.exporter
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - FRITZ_HOST=${FRITZ_HOST:-192.168.178.1}
+      - FRITZ_PORT=${FRITZ_PORT:-49000}
+      - FRITZ_USERNAME=${FRITZ_MONITOR_USERNAME:-}
+      - FRITZ_PASSWORD_FILE=/run/secrets/fritz_monitor_password
+      - FRITZ_USE_TLS=${FRITZ_USE_TLS:-false}
+      - FRITZ_TIMEOUT=${FRITZ_TIMEOUT:-5.0}
+      - EXPORTER_HOST=0.0.0.0
+      - EXPORTER_PORT=8000
+      - EXPORTER_COLLECTION_INTERVAL=${EXPORTER_COLLECTION_INTERVAL:-30}
+      - EXPORTER_READY_MAX_AGE=${EXPORTER_READY_MAX_AGE:-120}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    secrets:
+      - fritz_monitor_password
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          memory: 128M
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./config/prometheus/rules:/etc/prometheus/rules:ro
+      - ./config/blackbox/targets:/etc/blackbox/targets:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=${PROMETHEUS_RETENTION_TIME:-30d}'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1024M
+        reservations:
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      fritz-exporter:
+        condition: service_healthy
+
+  # P4 — long-term metrics store. Prometheus remote-writes here; Grafana has it
+  # as a second Prometheus-type datasource. ~7x smaller on disk than Prometheus.
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:v1.102.1
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+    volumes:
+      - victoriametrics_data:/victoria-metrics-data
+    command:
+      - '--retentionPeriod=${VM_RETENTION:-24}'
+      - '--storageDataPath=/victoria-metrics-data'
+      - '--selfScrapeInterval=30s'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.75'
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:8428/health | grep -q OK"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  loki:
+    image: grafana/loki:3.1.1
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+    volumes:
+      - ./config/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - ./config/loki/rules:/etc/loki/rules:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1024M
+        reservations:
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3100/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  alloy:
+    image: grafana/alloy:v1.3.1
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    ports:
+      - "${SYSLOG_BIND_ADDRESS:-127.0.0.1}:1514:1514/udp"
+    networks:
+      - backend
+      - ingress
+    volumes:
+      - ./config/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    # HTTP on 0.0.0.0 so Prometheus can scrape Alloy's own delivery metrics
+    # (loki.write sent/dropped) — otherwise it binds loopback-only.
+    # storage.path is ephemeral (/tmp): on restart Alloy re-reads recent
+    # container log backlog, which Loki tolerates (dup lines in that window).
+    # A persistent volume needs CAP_DAC_OVERRIDE or a writable-owner mount that
+    # conflicts with cap_drop:ALL here — left as a documented trade-off.
+    command: >-
+      run
+      --server.http.listen-addr=0.0.0.0:12345
+      --storage.path=/tmp/alloy
+      /etc/alloy/config.alloy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          memory: 64M
+    depends_on:
+      loki:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:11.5.0
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    ports:
+      - "${GRAFANA_BIND_ADDRESS:-127.0.0.1}:3000:3000"
+    networks:
+      - backend
+      - ingress
+    volumes:
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/grafana_admin_password
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_USERS_VIEWERS_CAN_EDIT=false
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-}
+      # hardening — safe universally
+      - GF_SECURITY_CONTENT_SECURITY_POLICY=true
+      - GF_SECURITY_COOKIE_SAMESITE=lax
+      - GF_SECURITY_DISABLE_GRAVATAR=true
+      - GF_SECURITY_X_CONTENT_TYPE_OPTIONS=true
+      - GF_SECURITY_X_XSS_PROTECTION=true
+      - GF_SNAPSHOTS_EXTERNAL_ENABLED=false
+      # set true once reached only over the Caddy TLS proxy (a Secure cookie is
+      # dropped over the plain-HTTP 127.0.0.1:3000 bind, breaking local login)
+      - GF_SECURITY_COOKIE_SECURE=${GRAFANA_COOKIE_SECURE:-false}
+      - GF_SECURITY_STRICT_TRANSPORT_SECURITY=${GRAFANA_HSTS:-false}
+    secrets:
+      - grafana_admin_password
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          memory: 128M
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
+
+  # Opt-in LAN reference probe. Enable with:  --profile iperf  and set
+  # IPERF_TARGET to a wired host running `iperf3 -s`. Short test, long interval
+  # (>= 600s) so it cannot continuously consume bandwidth.
+  blackbox-exporter:
+    image: quay.io/prometheus/blackbox-exporter:v0.25.0
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      # Raw sockets for ICMP echo; still no other privileges.
+      - NET_RAW
+    networks:
+      - backend
+      - fritz_egress
+    volumes:
+      - ./config/blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+    command:
+      - '--config.file=/etc/blackbox_exporter/config.yml'
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 64M
+        reservations:
+          memory: 16M
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9115/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+
+networks:
+  backend:
+    internal: true
+  fritz_egress:
+    driver: bridge
+  ingress:
+    driver: bridge
+
+volumes:
+  prometheus_data:
+  loki_data:
+  grafana_data:
+  home_iot_data:   # Blink cloud token cache (home_iot.blink)
+  netwatch_data:   # persistent first-seen-per-MAC map (home_iot.netwatch)
+  annotator_data:  # open-outage-annotation ids (home_iot.annotator)
+  alertmanager_data:
+  victoriametrics_data:
+  backup_textfile:
+  caddy_data:
+  trivy_cache:
+  caddy_config:
+
+secrets:
+  fritz_monitor_password:
+    file: ${FRITZ_MONITOR_PASSWORD_FILE:-./secrets/fritz_password.txt}
+  fritz_admin_password:
+    file: ${FRITZ_ADMIN_PASSWORD_FILE:-./secrets/fritz_password.txt}
+  grafana_admin_password:
+    file: ${GRAFANA_ADMIN_PASSWORD_FILE:-./secrets/grafana_admin_password.txt}
+  device_manager_admin_password:
+    file: ${DEVICE_MANAGER_ADMIN_PASSWORD_FILE:-./secrets/device_manager_admin_password.txt}
+  device_manager_secret_key:
+    file: ${DEVICE_MANAGER_SECRET_KEY_FILE:-./secrets/device_manager_secret_key.txt}
+  restic_password:
+    file: ${RESTIC_PASSWORD_FILE:-./secrets/restic_password.txt}
