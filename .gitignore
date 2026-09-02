@@ -85,3 +85,7 @@ secrets/
 .github/skills/
 .github/prompts/
 .github/copilot-instructions.md
+
+# P1 backups (restic repo — never commit)
+/backups/
+!/backups/.gitkeep

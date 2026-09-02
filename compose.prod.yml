@@ -480,13 +480,58 @@ services:
     command:
       - '--path.rootfs=/host'
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+      - '--collector.textfile.directory=/textfile'
     networks:
       - backend
     volumes:
       - /:/host:ro,rslave
+      - backup_textfile:/textfile:ro   # backup_last_success_timestamp_seconds etc.
     deploy:
       resources:
         limits: { cpus: '0.2', memory: 64M }
+
+  # P1 — restic backup of every data volume + config/secrets/.env. Writes a
+  # Prometheus textfile that node-exporter picks up. Local repo by default
+  # (point BACKUP_DIR at a NAS mount); set RESTIC_REPOSITORY=b2:... for cloud.
+  backup:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backup
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      # read every file in the data volumes regardless of owner/mode
+      - DAC_READ_SEARCH
+    environment:
+      - RESTIC_REPOSITORY=${RESTIC_REPOSITORY:-/repo}
+      - RESTIC_PASSWORD_FILE=/run/secrets/restic_password
+      - BACKUP_INTERVAL_HOURS=${BACKUP_INTERVAL_HOURS:-24}
+      - RESTIC_KEEP=${RESTIC_KEEP:---keep-daily 7 --keep-weekly 4 --keep-monthly 6}
+      - B2_ACCOUNT_ID=${B2_ACCOUNT_ID:-}
+      - B2_ACCOUNT_KEY=${B2_ACCOUNT_KEY:-}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+    volumes:
+      - ${BACKUP_DIR:-./backups}:/repo
+      - backup_textfile:/textfile
+      - grafana_data:/data/grafana_data:ro
+      - prometheus_data:/data/prometheus_data:ro
+      - victoriametrics_data:/data/victoriametrics_data:ro
+      - loki_data:/data/loki_data:ro
+      - alertmanager_data:/data/alertmanager_data:ro
+      - home_iot_data:/data/home_iot_data:ro
+      - ./config:/project/config:ro
+      - ./secrets:/project/secrets:ro
+      - ./compose.prod.yml:/project/compose.prod.yml:ro
+      - ./.env.production:/project/.env.production:ro
+    secrets:
+      - restic_password
+    deploy:
+      resources:
+        limits: { cpus: '0.5', memory: 256M }
 
   # Per-container CPU/memory/network/restarts straight off the Docker Engine
   # API socket. Replaces cAdvisor, which cannot read the overlay2 layer DB on
@@ -730,6 +775,7 @@ volumes:
   home_iot_data:   # Blink cloud token cache (home_iot.blink)
   alertmanager_data:
   victoriametrics_data:
+  backup_textfile:
 
 secrets:
   fritz_monitor_password:
@@ -742,3 +788,5 @@ secrets:
     file: ${DEVICE_MANAGER_ADMIN_PASSWORD_FILE:-./secrets/device_manager_admin_password.txt}
   device_manager_secret_key:
     file: ${DEVICE_MANAGER_SECRET_KEY_FILE:-./secrets/device_manager_secret_key.txt}
+  restic_password:
+    file: ${RESTIC_PASSWORD_FILE:-./secrets/restic_password.txt}
