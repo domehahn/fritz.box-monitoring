@@ -942,6 +942,7 @@ def test_digest_build_report():
         lambda e: scalars.get(e), lambda e: vectors.get(e, []), "7d"
     )
     assert "Weekly network digest" in title
+    assert "of the week" in body
     assert "avg 98.50%" in body
     assert "Gaming-PC — 8.2 GB" in body
     assert "Worst packet loss" in body  # 5% > 2% threshold
@@ -949,6 +950,37 @@ def test_digest_build_report():
     assert "BlinkSyncModuleOffline" in body
     assert "last 2h ago" in body
     assert "repo 46 MB" in body
+
+
+def test_digest_build_report_monthly_wording():
+    from home_iot.digest.report import build_report
+
+    scalars = {
+        "avg_over_time(home:network_health:score[30d])": 0.97,
+        "min_over_time(home:network_health:score[30d])": 0.6,
+        "avg_over_time(home:health:internet_reachability[30d])": 0.998,
+    }
+    title, body = build_report(
+        lambda e: scalars.get(e), lambda e: [], "30d", "Monthly"
+    )
+    assert "Monthly network digest" in title
+    assert "of the month" in body
+
+
+def test_digest_seconds_until_monthly():
+    import datetime as dt
+    from home_iot.digest.app import seconds_until_monthly
+
+    # Sep 2 12:00 -> Oct 1 09:00 == 28 days 21 hours
+    now = dt.datetime(2026, 9, 2, 12, 0, 0)
+    s = seconds_until_monthly(1, 9, now)
+    assert abs(s - (28 * 24 * 3600 + 21 * 3600)) < 2
+    # earlier same day -> today
+    now2 = dt.datetime(2026, 9, 1, 7, 0, 0)
+    assert abs(seconds_until_monthly(1, 9, now2) - 2 * 3600) < 2
+    # December wraps to January
+    dec = dt.datetime(2026, 12, 15, 0, 0, 0)
+    assert seconds_until_monthly(1, 9, dec) > 0
 
 
 def test_dockerstats_connection_selects_tcp_or_unix():

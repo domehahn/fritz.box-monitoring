@@ -12,7 +12,7 @@ from aiohttp import web
 from loguru import logger
 from prometheus_client import CollectorRegistry, Gauge, generate_latest
 
-from ..common import env_float, env_str, read_secret
+from ..common import env_bool, env_float, env_str, read_secret
 from .report import build_report
 
 PORT = 9130
@@ -27,6 +27,11 @@ def _cfg() -> dict:
         "day": int(env_float("DIGEST_DAY", 0.0)),  # 0 = Monday
         "hour": int(env_float("DIGEST_HOUR", 9.0)),
         "window": env_str("DIGEST_WINDOW", "7d"),
+        # monthly summary: on DIGEST_MONTHLY_DAY of each month at DIGEST_MONTHLY_HOUR
+        "monthly": env_bool("DIGEST_MONTHLY", True),
+        "monthly_day": min(28, max(1, int(env_float("DIGEST_MONTHLY_DAY", 1.0)))),
+        "monthly_hour": int(env_float("DIGEST_MONTHLY_HOUR", 9.0)),
+        "monthly_window": env_str("DIGEST_MONTHLY_WINDOW", "30d"),
     }
 
 
@@ -93,6 +98,7 @@ class _Metrics:
         self.next_ts = Gauge(
             "digest_next_run_timestamp_seconds",
             "Unix time of the next scheduled run",
+            ["period"],
             registry=self.reg,
         )
 
@@ -100,9 +106,10 @@ class _Metrics:
         return generate_latest(self.reg)
 
 
-def run_once(cfg: dict, m: _Metrics) -> bool:
+def run_once(cfg: dict, m: _Metrics, period: str = "Weekly") -> bool:
+    window = cfg["monthly_window"] if period == "Monthly" else cfg["window"]
     title, body = build_report(
-        _prom_scalar(cfg["prom"]), _prom_vector(cfg["prom"]), cfg["window"]
+        _prom_scalar(cfg["prom"]), _prom_vector(cfg["prom"]), window, period
     )
     m.last_ts.set(time.time())
     if not cfg["ntfy_topic"]:
@@ -111,7 +118,7 @@ def run_once(cfg: dict, m: _Metrics) -> bool:
         return False
     try:
         _publish(cfg, title, body)
-        logger.info("weekly digest pushed to ntfy")
+        logger.info("{} digest pushed to ntfy", period.lower())
         m.ok.set(1)
         return True
     except Exception as exc:  # noqa: BLE001
@@ -131,20 +138,54 @@ def seconds_until(day: int, hour: int, now: Optional[dt.datetime] = None) -> flo
     return (target - now).total_seconds()
 
 
-async def _scheduler(cfg: dict, m: _Metrics) -> None:
+def seconds_until_monthly(
+    dom: int, hour: int, now: Optional[dt.datetime] = None
+) -> float:
+    """Seconds to the next ``dom``-of-month at ``hour`` (dom clamped to 1..28)."""
+    now = now or dt.datetime.now()
+    dom = min(28, max(1, dom))
+    target = now.replace(
+        day=dom, hour=hour, minute=0, second=0, microsecond=0
+    )
+    if target <= now:
+        year, month = (now.year + 1, 1) if now.month == 12 else (now.year, now.month + 1)
+        target = target.replace(year=year, month=month)
+    return (target - now).total_seconds()
+
+
+async def _every(cfg: dict, m: _Metrics, period: str, wait_fn) -> None:
     while True:
-        wait = seconds_until(cfg["day"], cfg["hour"])
-        m.next_ts.set(time.time() + wait)
-        logger.info("next digest in {:.1f} h", wait / 3600)
+        wait = wait_fn()
+        m.next_ts.labels(period=period).set(time.time() + wait)
+        logger.info("next {} digest in {:.1f} h", period.lower(), wait / 3600)
         await asyncio.sleep(wait)
-        await asyncio.to_thread(run_once, cfg, m)
+        await asyncio.to_thread(run_once, cfg, m, period)
         await asyncio.sleep(60)  # avoid a double-fire in the same minute
 
 
+async def _scheduler(cfg: dict, m: _Metrics) -> None:
+    tasks = [
+        _every(cfg, m, "Weekly", lambda: seconds_until(cfg["day"], cfg["hour"]))
+    ]
+    if cfg["monthly"]:
+        tasks.append(
+            _every(
+                cfg,
+                m,
+                "Monthly",
+                lambda: seconds_until_monthly(
+                    cfg["monthly_day"], cfg["monthly_hour"]
+                ),
+            )
+        )
+    await asyncio.gather(*tasks)
+
+
 def build_app(cfg: dict, m: _Metrics) -> web.Application:
-    async def run(_req: web.Request) -> web.Response:
-        ok = await asyncio.to_thread(run_once, cfg, m)
-        return web.json_response({"sent": ok})
+    async def run(req: web.Request) -> web.Response:
+        period = "Monthly" if req.query.get("period", "").lower().startswith("m") else "Weekly"
+        ok = await asyncio.to_thread(run_once, cfg, m, period)
+        return web.json_response({"sent": ok, "period": period})
 
     async def metrics(_req: web.Request) -> web.Response:
         return web.Response(body=m.render(), content_type="text/plain")
@@ -171,7 +212,9 @@ async def _main() -> None:
     await runner.setup()
     await web.TCPSite(runner, "0.0.0.0", PORT).start()
     logger.info(
-        "digest on :{} — schedule day={} hour={}", PORT, cfg["day"], cfg["hour"]
+        "digest on :{} — weekly day={} hour={}; monthly={} dom={} hour={}",
+        PORT, cfg["day"], cfg["hour"],
+        cfg["monthly"], cfg["monthly_day"], cfg["monthly_hour"],
     )
     await _scheduler(cfg, m)
 
