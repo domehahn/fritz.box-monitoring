@@ -6,6 +6,8 @@ no hub, no network.
 """
 from types import SimpleNamespace
 
+import pytest
+
 from home_iot.common import env_bool, env_float, read_secret
 from home_iot.blink.exporter import BlinkExporter, to_metric_rows
 from home_iot.bosch.exporter import BoschExporter, read_devices
@@ -580,6 +582,35 @@ def test_alertbridge_ascii_header():
 
     assert _ascii("🚨 CRITICAL: x") == "CRITICAL: x"
     assert _ascii("🚨🚨🚨") == "alert"
+
+
+@pytest.mark.asyncio
+async def test_alertbridge_watchdog_updates_state(monkeypatch):
+    from aiohttp.test_utils import make_mocked_request
+
+    from home_iot.alertbridge import app
+
+    monkeypatch.setattr(app, "_last_watchdog", 0.0, raising=False)
+    app._watchdog_seen.set(0.0)
+    # no DEADMAN_URL -> no outbound request
+    resp = await app.handle_watchdog(make_mocked_request("POST", "/watchdog"))
+    assert resp.status == 200
+    assert app._last_watchdog > 0.0
+    body = app.generate_latest().decode()
+    assert "alertbridge_watchdog_last_seen_timestamp_seconds" in body
+
+
+@pytest.mark.asyncio
+async def test_alertbridge_watchdog_pings_deadman_url(monkeypatch):
+    from aiohttp.test_utils import make_mocked_request
+
+    from home_iot.alertbridge import app
+
+    hits = []
+    monkeypatch.setenv("DEADMAN_URL", "https://hc.example/ping/abc")
+    monkeypatch.setattr(app.requests, "get", lambda url, timeout=0: hits.append(url))
+    await app.handle_watchdog(make_mocked_request("GET", "/watchdog"))
+    assert hits == ["https://hc.example/ping/abc"]
 
 
 # --------------------------------------------------------------------------- #

@@ -26,3 +26,21 @@ groups:
           severity: info
         annotations:
           summary: "No backup metrics — the backup service may not be running"
+
+      - alert: BackupVerifyFailed
+        expr: backup_last_verify_success == 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Backup verification failed (restic check / restore smoke test)"
+          description: "The repository failed `restic check --read-data-subset=5%` or the restore smoke test could not recover a known file. The backups may be corrupt or unreadable."
+
+      - alert: BackupVerifyStale
+        expr: time() - backup_last_verify_timestamp_seconds > 1209600
+        for: 1h
+        labels:
+          severity: info
+        annotations:
+          summary: "No backup verification in {{ $value | humanizeDuration }}"
+          description: "restic check + a restore smoke test have not run for over 14 days. Confirm the `backup` loop is alive and BACKUP_VERIFY_EVERY is sane."

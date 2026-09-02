@@ -172,6 +172,11 @@ scrape_configs:
     static_configs:
       - targets: ['alertmanager:9093']
 
+  - job_name: 'alertbridge'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['alertbridge:9127']
+
   # --- Long-term storage (P4) ---
   - job_name: 'victoriametrics'
     static_configs:
