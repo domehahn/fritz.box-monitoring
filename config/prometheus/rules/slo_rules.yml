@@ -1,0 +1,120 @@
+groups:
+  # ---------------------------------------------------------------------------
+  # SLIs — a 0..1 "good" gauge sampled every 30s. Availability SLIs reuse the
+  # health recordings; the latency SLI is the fraction of internet probes under
+  # the target RTT.
+  # ---------------------------------------------------------------------------
+  - name: slo_sli_recording
+    interval: 30s
+    rules:
+      - record: slo:sli:good
+        expr: home:health:internet_reachability
+        labels: {slo: internet_availability}
+
+      - record: slo:sli:good
+        expr: home:health:dns
+        labels: {slo: dns_availability}
+
+      - record: slo:sli:good
+        expr: >
+          (avg(probe_duration_seconds{job="probe_icmp_internet"}) < bool 0.030)
+          or vector(0)
+        labels: {slo: internet_latency}
+
+  # ---------------------------------------------------------------------------
+  # SLO targets. One series per SLO; everything else joins on {slo}.
+  # ---------------------------------------------------------------------------
+  - name: slo_target_recording
+    interval: 1m
+    rules:
+      - record: slo:target:ratio
+        expr: vector(0.995)
+        labels: {slo: internet_availability}
+      - record: slo:target:ratio
+        expr: vector(0.999)
+        labels: {slo: dns_availability}
+      - record: slo:target:ratio
+        expr: vector(0.99)
+        labels: {slo: internet_latency}
+
+  # ---------------------------------------------------------------------------
+  # Error ratio per rolling window + 30d attainment and budget burn.
+  # ---------------------------------------------------------------------------
+  - name: slo_error_recording
+    interval: 1m
+    rules:
+      - record: slo:error_ratio:rate5m
+        expr: 1 - avg_over_time(slo:sli:good[5m])
+      - record: slo:error_ratio:rate30m
+        expr: 1 - avg_over_time(slo:sli:good[30m])
+      - record: slo:error_ratio:rate1h
+        expr: 1 - avg_over_time(slo:sli:good[1h])
+      - record: slo:error_ratio:rate6h
+        expr: 1 - avg_over_time(slo:sli:good[6h])
+      - record: slo:error_ratio:rate3d
+        expr: 1 - avg_over_time(slo:sli:good[3d])
+
+      - record: slo:attainment:ratio30d
+        expr: avg_over_time(slo:sli:good[30d])
+
+      # fraction of the 30d error budget already spent (>1 ⇒ SLO missed)
+      - record: slo:budget_consumed:ratio30d
+        expr: >
+          (1 - slo:attainment:ratio30d)
+          / clamp_min(1 - slo:target:ratio, 0.0001)
+
+      - record: slo:budget_remaining:ratio30d
+        expr: clamp_min(1 - slo:budget_consumed:ratio30d, -1)
+
+      # burn rate = how many times faster than "budget lasts exactly 30d".
+      # 1 - target is the allowed error ratio; join on {slo}.
+      - record: slo:burn_rate:5m
+        expr: >
+          slo:error_ratio:rate5m
+          / on(slo) group_left clamp_min(1 - slo:target:ratio, 0.0001)
+      - record: slo:burn_rate:30m
+        expr: >
+          slo:error_ratio:rate30m
+          / on(slo) group_left clamp_min(1 - slo:target:ratio, 0.0001)
+      - record: slo:burn_rate:1h
+        expr: >
+          slo:error_ratio:rate1h
+          / on(slo) group_left clamp_min(1 - slo:target:ratio, 0.0001)
+      - record: slo:burn_rate:6h
+        expr: >
+          slo:error_ratio:rate6h
+          / on(slo) group_left clamp_min(1 - slo:target:ratio, 0.0001)
+
+  # ---------------------------------------------------------------------------
+  # Multi-window, multi-burn-rate alerts (Google SRE workbook).
+  #   fast page : 1h & 5m  windows, burn ≥ 14.4  (budget gone in ~2 days)
+  #   slow ticket: 6h & 30m windows, burn ≥ 6     (budget gone in ~5 days)
+  # ---------------------------------------------------------------------------
+  - name: slo_burn_alerts
+    rules:
+      - alert: SLOFastBurn
+        expr: slo:burn_rate:1h > 14.4 and on(slo) slo:burn_rate:5m > 14.4
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SLO {{ $labels.slo }} burning fast ({{ $value | printf \"%.1f\" }}x budget)"
+          description: "At this rate the 30-day error budget is gone in ~2 days. Something is broken now."
+
+      - alert: SLOSlowBurn
+        expr: slo:burn_rate:6h > 6 and on(slo) slo:burn_rate:30m > 6
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SLO {{ $labels.slo }} burning ({{ $value | printf \"%.1f\" }}x budget)"
+          description: "Sustained errors — the 30-day budget lasts ~5 days at this rate."
+
+      - alert: SLOBudgetExhausted
+        expr: slo:budget_consumed:ratio30d > 1
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SLO {{ $labels.slo }} missed for the trailing 30 days ({{ $value | printf \"%.2f\" }}x budget spent)"
+          description: "Trailing-30d attainment is below target. See the SLO dashboard."

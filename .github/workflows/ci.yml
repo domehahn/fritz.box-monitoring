@@ -96,7 +96,8 @@ jobs:
                         /config/prometheus/rules/security_alerts.yml \
                         /config/prometheus/rules/watchdog.yml \
                         /config/prometheus/rules/meta_rules.yml \
-                        /config/prometheus/rules/automation_alerts.yml
+                        /config/prometheus/rules/automation_alerts.yml \
+                        /config/prometheus/rules/slo_rules.yml
 
       - name: Validate Caddyfile
         run: |
