@@ -918,3 +918,23 @@ def test_digest_build_report():
     assert "BlinkSyncModuleOffline" in body
     assert "last 2h ago" in body
     assert "repo 46 MB" in body
+
+
+def test_dockerstats_connection_selects_tcp_or_unix():
+    import http.client
+    from home_iot.dockerstats.exporter import _connection
+
+    c = _connection("tcp://docker-socket-proxy:2375", 5)
+    assert isinstance(c, http.client.HTTPConnection) and c.host == "docker-socket-proxy"
+    assert c.port == 2375
+    u = _connection("/var/run/docker.sock", 5)
+    assert u.__class__.__name__ == "_UnixHTTPConnection"
+
+
+def test_dockerstats_config_prefers_docker_host(monkeypatch):
+    from home_iot.dockerstats.exporter import DockerStatsConfig
+
+    monkeypatch.setenv("DOCKER_HOST", "tcp://proxy:2375")
+    assert DockerStatsConfig.from_env().socket_path == "tcp://proxy:2375"
+    monkeypatch.delenv("DOCKER_HOST")
+    assert DockerStatsConfig.from_env().socket_path == "/var/run/docker.sock"

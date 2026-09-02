@@ -1,0 +1,35 @@
+groups:
+  - name: security_alerts
+    rules:
+      - alert: ImageHasCriticalCVEs
+        expr: sum by (image) (trivy_image_vulnerabilities{severity="CRITICAL"}) > 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.image }} has {{ $value }} CRITICAL CVE(s)"
+          description: "Update the image tag in compose.prod.yml / rebuild."
+
+      - alert: ImageManyHighCVEs
+        expr: sum by (image) (trivy_image_vulnerabilities{severity="HIGH"}) > 10
+        for: 2h
+        labels:
+          severity: info
+        annotations:
+          summary: "{{ $labels.image }} has {{ $value }} HIGH CVEs"
+
+      - alert: CVEScanStale
+        expr: time() - trivy_last_scan_timestamp_seconds > 1209600
+        for: 1h
+        labels:
+          severity: info
+        annotations:
+          summary: "No image CVE scan in 2 weeks"
+
+      - alert: DockerSocketProxyDown
+        expr: absent(docker_container_up) or up{job="dockerstats"} == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "dockerstats has no container data — socket proxy down?"

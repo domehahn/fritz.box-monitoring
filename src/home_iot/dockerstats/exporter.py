@@ -23,13 +23,18 @@ INTERVAL_FLOOR_S = 10.0
 
 @dataclass(frozen=True)
 class DockerStatsConfig:
+    #: unix socket path, or "tcp://host:port" for a docker-socket-proxy
     socket_path: str = "/var/run/docker.sock"
     interval_seconds: float = 20.0
 
     @classmethod
     def from_env(cls) -> "DockerStatsConfig":
+        # DOCKER_HOST wins (set to tcp://docker-socket-proxy:2375 by compose)
+        target = env_str("DOCKER_HOST") or env_str(
+            "DOCKER_SOCKET", "/var/run/docker.sock"
+        )
         return cls(
-            socket_path=env_str("DOCKER_SOCKET", "/var/run/docker.sock"),
+            socket_path=target,
             interval_seconds=env_float(
                 "DOCKERSTATS_INTERVAL_SECONDS", 20.0, floor=INTERVAL_FLOOR_S
             ),
@@ -48,8 +53,16 @@ class _UnixHTTPConnection(http.client.HTTPConnection):
         self.sock = s
 
 
+def _connection(target: str, timeout: float) -> http.client.HTTPConnection:
+    if target.startswith(("tcp://", "http://")):
+        host = target.split("://", 1)[1]
+        h, _, p = host.partition(":")
+        return http.client.HTTPConnection(h, int(p or 2375), timeout=timeout)
+    return _UnixHTTPConnection(target, timeout=timeout)
+
+
 def _api_get(socket_path: str, path: str, timeout: float = 10.0) -> Any:
-    conn = _UnixHTTPConnection(socket_path, timeout=timeout)
+    conn = _connection(socket_path, timeout)
     try:
         conn.request(
             "GET", path, headers={"Host": "localhost", "Accept": "application/json"}

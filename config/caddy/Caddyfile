@@ -1,11 +1,12 @@
 # P4 — one HTTPS URL for the stack (Grafana). Reach your dashboards from a
 # phone on the LAN (or via MyFRITZ) without exposing Grafana's plain-HTTP port.
 #
-#   PROXY_DOMAIN   hostname you'll browse to (add a DNS entry on the FRITZ!Box,
-#                  or use the machine's .fritz.box name). Default: localhost.
-#   PROXY_TLS      "internal" = Caddy's own CA (self-signed; the phone warns
-#                  once, then trusts it). Set to an e-mail address for a real
-#                  Let's Encrypt cert when PROXY_DOMAIN is a public FQDN.
+#   PROXY_DOMAIN     hostname you'll browse to (the machine's .fritz.box name
+#                    works without any DNS setup). Default: localhost.
+#   PROXY_TLS        "internal" = Caddy's own CA (self-signed; the phone warns
+#                    once). An e-mail address = Let's Encrypt (public FQDN only).
+#   PROXY_ALLOW_CIDR space-separated source ranges allowed in. Default: RFC1918
+#                    + loopback. Set to your LAN /24 to tighten further.
 {
 	admin off
 	auto_https disable_redirects
@@ -14,6 +15,11 @@
 {$PROXY_DOMAIN:localhost} {
 	tls {$PROXY_TLS:internal}
 	encode zstd gzip
+
+	# defence in depth: only LAN / private sources
+	@blocked not remote_ip {$PROXY_ALLOW_CIDR:127.0.0.1/32 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 fd00::/8}
+	respond @blocked "forbidden" 403
+
 	reverse_proxy grafana:3000 {
 		header_up X-Forwarded-Proto https
 	}

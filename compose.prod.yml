@@ -219,8 +219,21 @@ services:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/grafana_admin_password
       - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_USERS_VIEWERS_CAN_EDIT=false
       - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
       - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-}
+      # hardening — safe universally
+      - GF_SECURITY_CONTENT_SECURITY_POLICY=true
+      - GF_SECURITY_COOKIE_SAMESITE=lax
+      - GF_SECURITY_DISABLE_GRAVATAR=true
+      - GF_SECURITY_X_CONTENT_TYPE_OPTIONS=true
+      - GF_SECURITY_X_XSS_PROTECTION=true
+      - GF_SNAPSHOTS_EXTERNAL_ENABLED=false
+      # set true once reached only over the Caddy TLS proxy (a Secure cookie is
+      # dropped over the plain-HTTP 127.0.0.1:3000 bind, breaking local login)
+      - GF_SECURITY_COOKIE_SECURE=${GRAFANA_COOKIE_SECURE:-false}
+      - GF_SECURITY_STRICT_TRANSPORT_SECURITY=${GRAFANA_HSTS:-false}
     secrets:
       - grafana_admin_password
     deploy:
@@ -537,6 +550,29 @@ services:
   # Per-container CPU/memory/network/restarts straight off the Docker Engine
   # API socket. Replaces cAdvisor, which cannot read the overlay2 layer DB on
   # Docker Desktop / macOS and there returns only the root cgroup.
+  # Read-only, filtered Docker API. The ONLY container that touches the raw
+  # socket; dockerstats + trivy go through it and need no socket / root.
+  docker-socket-proxy:
+    image: ghcr.io/tecnativa/docker-socket-proxy:0.3
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - backend
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - CONTAINERS=1      # list + inspect + /stats (GET)
+      - IMAGES=1          # trivy image scan
+      - INFO=1
+      - POST=0            # no writes
+      - EXEC=0
+      - VOLUMES=0
+      - NETWORKS=0
+    deploy:
+      resources:
+        limits: { cpus: '0.2', memory: 48M }
+
   dockerstats-exporter:
     image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
     build:
@@ -544,22 +580,18 @@ services:
       dockerfile: docker/Dockerfile.home_iot
     command: ["python", "-m", "home_iot.dockerstats"]
     restart: unless-stopped
-    # Root is needed to read the Docker socket (root:root on Docker Desktop);
-    # every capability is still dropped and no-new-privileges is set, and the
-    # socket is mounted read-only. Harden further with a docker-socket-proxy if
-    # you want zero root — this exporter only issues GETs.
-    user: "0:0"
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
     networks:
       - backend
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
+      - DOCKER_HOST=tcp://docker-socket-proxy:2375
       - DOCKERSTATS_INTERVAL_SECONDS=${DOCKERSTATS_INTERVAL_SECONDS:-20}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    depends_on:
+      - docker-socket-proxy
     deploy:
       resources:
         limits: { cpus: '0.3', memory: 128M }
@@ -641,6 +673,31 @@ services:
       interval: 60s
       timeout: 5s
       retries: 3
+
+  # P1 — weekly CVE scan of the running images -> node-exporter textfile.
+  trivy:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.trivy
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress   # trivy DB / advisory feed
+    environment:
+      - DOCKER_HOST=tcp://docker-socket-proxy:2375
+      - TRIVY_INTERVAL_HOURS=${TRIVY_INTERVAL_HOURS:-168}
+    volumes:
+      - backup_textfile:/textfile
+      - trivy_cache:/cache
+    depends_on:
+      - docker-socket-proxy
+    deploy:
+      resources:
+        limits: { cpus: '1.0', memory: 768M }
 
   # --- Reverse proxy (P4, opt-in) ---------------------------------
   # HTTPS + one hostname for Grafana. `docker compose --profile proxy up -d`.
@@ -845,6 +902,7 @@ volumes:
   victoriametrics_data:
   backup_textfile:
   caddy_data:
+  trivy_cache:
   caddy_config:
 
 secrets:
