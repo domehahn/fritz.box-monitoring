@@ -321,3 +321,31 @@ one traffic-light number + a 24 h / 7 d average + the component breakdown.
 * `WanSaturatedSustained` — WAN download > 90 % of capacity for 20 min
 * `HeatingAboveExpectation` — radiators > 55 % open while it's > 12 °C outside
 * `EnergyCostSpike` — metered running cost 3× the weekly norm
+
+---
+
+## Reverse proxy (P4, opt-in) — `caddy`
+
+`docker compose --profile proxy up -d`. One HTTPS endpoint for Grafana so you
+can open dashboards from a phone without exposing the plain-HTTP port.
+
+* `PROXY_DOMAIN` — the hostname you browse to. Give the stack host a name on the
+  FRITZ!Box (static lease) or use `<host>.fritz.box`.
+* `PROXY_TLS=internal` (default) — Caddy's own CA; the phone shows a warning the
+  first time, then trusts it. For a real cert set `PROXY_TLS=you@example.com`
+  with a public `PROXY_DOMAIN`.
+* Set `GRAFANA_ROOT_URL=https://$PROXY_DOMAIN` so Grafana's own links are right.
+
+Caddy binds `:80`/`:443` on `${PROXY_BIND_ADDRESS:-0.0.0.0}`; Grafana's
+`127.0.0.1:3000` stays as-is for local use.
+
+## Weekly digest (P6) — `digest`
+
+Every `DIGEST_DAY`/`DIGEST_HOUR` (Mon 09:00) the `digest` service queries
+Prometheus and pushes a summary to the P0 ntfy topic: network-health avg/worst,
+internet reachability, worst packet loss, top bandwidth devices (7 d), average
+electricity price + metered kWh, distinct alerts fired, disk projection, backup
+age. `GET/POST http://digest:9130/run` fires one now
+(`docker exec …-digest-1 wget -qO- --post-data='' localhost:9130/run`).
+`digest_last_run_success` / `_timestamp_seconds` / `_next_run_timestamp_seconds`
+are scraped.
