@@ -61,6 +61,8 @@ ok "grafana dashboards"
 $COMPOSE config -q || die "compose config invalid"
 ok "compose config"
 
+bash scripts/check-secrets.sh || true
+
 [ "$MODE" = "--check" ] && { say "validate-only — done"; exit 0; }
 
 # --------------------------------------------------- what changed since last deploy

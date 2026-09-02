@@ -1,0 +1,8 @@
+# P1 — scheduled CVE scan of the running images.
+FROM aquasec/trivy:0.56.2
+
+RUN apk add --no-cache jq coreutils wget
+COPY docker/trivy-entrypoint.sh /usr/local/bin/scan
+RUN chmod +x /usr/local/bin/scan
+
+ENTRYPOINT ["/usr/local/bin/scan"]

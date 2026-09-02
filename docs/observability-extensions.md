@@ -349,3 +349,29 @@ age. `GET/POST http://digest:9130/run` fires one now
 (`docker exec …-digest-1 wget -qO- --post-data='' localhost:9130/run`).
 `digest_last_run_success` / `_timestamp_seconds` / `_next_run_timestamp_seconds`
 are scraped.
+
+---
+
+## Security hardening (P1)
+
+* **`docker-socket-proxy`** — the only container that touches the raw Docker
+  socket. `dockerstats` and `trivy` reach it via `tcp://docker-socket-proxy:2375`
+  with a read-only, GET-only allowlist (`CONTAINERS`, `IMAGES`, `INFO`;
+  `POST=0`). `dockerstats` no longer runs as root or mounts the socket.
+* **Grafana** — `GF_SECURITY_CONTENT_SECURITY_POLICY`, `COOKIE_SAMESITE=lax`,
+  `X_CONTENT_TYPE_OPTIONS`, `X_XSS_PROTECTION`, no gravatar, no external
+  snapshots, `VIEWERS_CAN_EDIT=false`. Set `GRAFANA_COOKIE_SECURE=true` and
+  `GRAFANA_HSTS=true` once you only reach Grafana through the Caddy TLS proxy.
+* **Caddy** — a `remote_ip` allow-list (`PROXY_ALLOW_CIDR`, default RFC1918 +
+  loopback) rejects any non-LAN source with 403.
+* **`trivy`** — weekly (`TRIVY_INTERVAL_HOURS`) CVE scan of this project's
+  running images → `trivy_image_vulnerabilities{image,severity}` textfile
+  (node-exporter). Alerts `ImageHasCriticalCVEs`, `ImageManyHighCVEs`,
+  `CVEScanStale`. `make scan-now` runs one immediately.
+* **`scripts/check-secrets.sh`** (`make check-secrets`, also non-fatal in
+  `deploy.sh` and CI) — flags short / placeholder / **reused** secrets.
+* **gitleaks** — pre-commit hook + CI step.
+
+**Rotating Grafana's admin password**: the file is only read on first DB init,
+so afterwards use `make rotate-grafana` (generates one, writes the secret,
+runs `grafana cli admin reset-admin-password`).

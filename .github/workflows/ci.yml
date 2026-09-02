@@ -59,6 +59,19 @@ jobs:
           docker compose -f compose.prod.yml config
           docker compose -f compose.prod.yml --profile admin --profile iperf --profile smarthome --profile weather --profile speedtest --profile lantap --profile proxy config
 
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+
+      - name: Weak-secret check
+        run: |
+          mkdir -p secrets
+          for s in fritz_password grafana_admin_password device_manager_admin_password device_manager_secret_key restic_password; do
+            [ -f "secrets/$s.txt" ] || head -c 32 /dev/urandom | base64 > "secrets/$s.txt"
+          done
+          bash scripts/check-secrets.sh   # non-fatal in CI (placeholder secrets)
+
       - name: Validate Prometheus config & rules
         run: |
           docker run --rm -v "$PWD/config:/config:ro" \
@@ -79,7 +92,8 @@ jobs:
                         /config/prometheus/rules/lantap_alerts.yml \
                         /config/prometheus/rules/backup_alerts.yml \
                         /config/prometheus/rules/health_rules.yml \
-                        /config/prometheus/rules/anomaly_rules.yml
+                        /config/prometheus/rules/anomaly_rules.yml \
+                        /config/prometheus/rules/security_alerts.yml
 
       - name: Validate Caddyfile
         run: |

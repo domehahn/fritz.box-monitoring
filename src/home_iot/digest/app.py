@@ -59,7 +59,9 @@ def _prom_vector(base: str):
 
 def _publish(cfg: dict, title: str, body: str) -> None:
     # HTTP headers are latin-1 and must not have leading/interior control chars
-    safe_title = " ".join(title.encode("ascii", "ignore").decode().split()) or "Weekly digest"
+    safe_title = (
+        " ".join(title.encode("ascii", "ignore").decode().split()) or "Weekly digest"
+    )
     headers = {
         "Title": safe_title,
         "Priority": "2",
