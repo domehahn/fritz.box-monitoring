@@ -29,7 +29,7 @@ from prometheus_client import CollectorRegistry, Counter, Gauge, generate_latest
 
 from ..common import env_float, env_str, read_secret
 from .login import check_session, login
-from .pcap import Net, PcapStream, classify
+from .pcap import Net, PcapStream, classify_flows
 
 
 @dataclass(frozen=True)
@@ -114,6 +114,13 @@ class LanTapExporter:
             "lantap_host_received_packets_total",
             "Packets a local host received",
             ["ip"],
+            registry=self.registry,
+        )
+        self.category = Counter(
+            "lantap_host_category_bytes_total",
+            "Bytes per local host per traffic category (heuristic: dns/web/quic/"
+            "gaming/mail/vpn/remote/p2p-rtc/ntp/push/other)",
+            ["ip", "category", "direction"],
             registry=self.registry,
         )
         self.info = Gauge(
@@ -246,8 +253,11 @@ def capture_loop(cfg: LanTapConfig, exp: LanTapExporter, stop: threading.Event) 
                     for orig_len, frame in stream.feed(chunk):
                         exp.frames.inc()
                         exp.last_frame_ts.set(time.time())
-                        for ip, direction, n in classify(frame, orig_len, nets):
+                        for ip, direction, cat, n in classify_flows(
+                            frame, orig_len, nets
+                        ):
                             exp.add(ip, direction, n)
+                            exp.category.labels(ip, cat, direction).inc(n)
                 except Exception as exc:  # noqa: BLE001 - resync on desync
                     exp.parse_errors.inc()
                     errors_this_session += 1

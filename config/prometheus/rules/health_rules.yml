@@ -1,0 +1,48 @@
+groups:
+  - name: network_health_recording
+    interval: 30s
+    rules:
+      - record: home:health:internet_reachability
+        expr: avg(probe_success{job="probe_icmp_internet"}) or vector(0)
+
+      - record: home:health:dns
+        expr: avg(probe_success{job=~"probe_dns_.*"}) or vector(0)
+
+      - record: home:health:internet_loss_ok
+        expr: clamp_max(1 - (max(fritz:probe_loss_ratio:5m) or vector(0)), 1)
+
+      - record: home:health:mesh
+        expr: >
+          (fritz:mesh_nodes_healthy:count
+           / clamp_min(fritz:mesh_nodes_total:count, 1)) or vector(1)
+
+      - record: home:health:exporter
+        expr: min(fritz_scrape_success) or vector(0)
+
+      # 0..1 weighted composite — the single "is the home network OK" number
+      - record: home:network_health:score
+        expr: >
+          home:health:internet_reachability * 0.35
+          + home:health:dns                 * 0.20
+          + home:health:internet_loss_ok    * 0.15
+          + home:health:mesh                * 0.20
+          + home:health:exporter            * 0.10
+
+  - name: network_health_alerts
+    rules:
+      - alert: NetworkHealthDegraded
+        expr: home:network_health:score < 0.9
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Network health score {{ $value | printf \"%.2f\" }} (< 0.90)"
+          description: "Check the Network Health dashboard — internet reachability, DNS, packet loss, mesh, or the exporter is down."
+
+      - alert: NetworkHealthCritical
+        expr: home:network_health:score < 0.6
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Network health score {{ $value | printf \"%.2f\" }} — something is broken"

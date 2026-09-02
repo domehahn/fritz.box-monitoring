@@ -77,7 +77,9 @@ jobs:
                         /config/prometheus/rules/energy_rules.yml \
                         /config/prometheus/rules/occupancy_rules.yml \
                         /config/prometheus/rules/lantap_alerts.yml \
-                        /config/prometheus/rules/backup_alerts.yml
+                        /config/prometheus/rules/backup_alerts.yml \
+                        /config/prometheus/rules/health_rules.yml \
+                        /config/prometheus/rules/anomaly_rules.yml
 
       - name: Validate Alertmanager config
         run: |

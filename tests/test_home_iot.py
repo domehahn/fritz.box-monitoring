@@ -816,3 +816,48 @@ def test_lantap_config_subnets():
     assert len(nets) == 2
     assert cfg.configured
     assert cfg.reconnect_minutes == 30.0
+
+
+def test_lantap_l4_and_category():
+    import struct
+    from home_iot.lantap.pcap import category, frame_l4
+
+    def eth_ipv4_l4(proto, sport, dport):
+        mac = b"\x00" * 12
+        l2 = mac + b"\x08\x00"
+        ip = (
+            bytes([0x45, 0, 0, 40, 0, 0, 0x40, 0, 0x40, proto, 0, 0])
+            + b"\xc0\xa8\xb2\x0a"
+            + b"\x08\x08\x08\x08"
+        )
+        l4 = struct.pack(">HH", sport, dport) + b"\x00" * 4
+        return l2 + ip + l4
+
+    assert frame_l4(eth_ipv4_l4(6, 51514, 443)) == (6, 51514, 443)
+    assert category(6, 51514, 443) == "web"
+    assert category(17, 51514, 443) == "quic"
+    assert category(17, 40000, 27020) == "gaming"
+    assert category(6, 33333, 53) == "dns"
+    assert category(6, 40000, 587) == "mail"
+    assert category(17, 44444, 55555) == "p2p/rtc"
+    assert category(6, 40000, 40001) == "other"
+
+
+def test_lantap_classify_flows():
+    import ipaddress
+    from home_iot.lantap.pcap import classify_flows
+
+    nets = [ipaddress.ip_network("192.168.178.0/24")]
+    # local .10 -> 8.8.8.8:53 udp
+    mac = b"\x00" * 12
+    frame = (
+        mac
+        + b"\x08\x00"
+        + bytes([0x45, 0, 0, 40, 0, 0, 0x40, 0, 0x40, 17, 0, 0])
+        + ipaddress.IPv4Address("192.168.178.10").packed
+        + ipaddress.IPv4Address("8.8.8.8").packed
+        + b"\xdd\xdd\x00\x35"
+        + b"\x00" * 4
+    )
+    out = classify_flows(frame, 120, nets)
+    assert out == [("192.168.178.10", "tx", "dns", 120)]
