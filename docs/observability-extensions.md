@@ -403,3 +403,31 @@ are scraped.
 **Rotating Grafana's admin password**: the file is only read on first DB init,
 so afterwards use `make rotate-grafana` (generates one, writes the secret,
 runs `grafana cli admin reset-admin-password`).
+
+---
+
+## Stack self-monitoring (P3)
+
+The monitoring stack now watches **itself**.
+
+* **`prometheus` self-scrape** — Prometheus was never scraping `localhost:9090`,
+  so its own TSDB / rule-eval / `notifications_alertmanagers_discovered` series
+  were missing (which silently disabled `AlertmanagerNotConnected`). Added.
+* **`rules/meta_rules.yml`** — recording rules `stack:tsdb_head_series:count`,
+  `stack:series_by_job:count`, `stack:ingest_samples:rate5m`; alerts
+  `PrometheusHighCardinality` (> 150k head series), `PrometheusCardinalityGrowth`
+  (predict_linear +50% in 3 d), `PrometheusRuleEvalFailing`,
+  `PrometheusTSDBReloadFailing`, `PrometheusTargetScrapeTooSlow` (> 8 s of the
+  10 s budget).
+* **"Stack Overhead" dashboard** (`stack.json`, uid `stack_overhead`) — head
+  series trend, series per job, scrape duration/samples per job, remote_write
+  lag to VictoriaMetrics, Prometheus vs VM RSS, and a **Top 25 metrics by
+  series** table.
+* **`scripts/cardinality-report.sh`** (`make cardinality`) — one-shot terminal
+  report: total head series, series per job, top metric names, scrape cost per
+  target. Run it after adding an exporter or when `PrometheusHighCardinality`
+  fires. `PROM_URL=…` to target a remote Prometheus.
+* **`scripts/lint-dashboards.py`** (`make lint-dashboards`, run in `deploy.sh`
+  and CI) — every provisioned dashboard is checked for unknown datasource uids,
+  `${DS_}`/`__inputs` export leftovers, data panels with no targets, targets
+  with an empty expr, and duplicate dashboard/panel ids.
