@@ -200,6 +200,12 @@ scrape_configs:
     static_configs:
       - targets: ['digest:9130']
 
+  # Home automation (compose --profile automation). DOWN unless enabled.
+  - job_name: 'automation'
+    scrape_interval: 60s
+    static_configs:
+      - targets: ['automation:9131']
+
   # Per-device bandwidth (compose --profile lantap). DOWN unless enabled.
   - job_name: 'lantap'
     scrape_interval: 15s

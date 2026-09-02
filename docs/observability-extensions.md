@@ -438,6 +438,33 @@ The monitoring stack now watches **itself**.
   `${DS_}`/`__inputs` export leftovers, data panels with no targets, targets
   with an empty expr, and duplicate dashboard/panel ids.
 
+## Home automation (opt-in, dry-run) — `home_iot.automation`
+
+`compose --profile automation`. Port 9131. Reads a handful of Prometheus values
+every `AUTOMATION_INTERVAL_SECONDS` and decides whether to act.
+
+**Dry-run is the default.** With `AUTOMATION_DRY_RUN=true` nothing touches a
+device — decisions are logged, counted (`automation_action_planned_total`), and
+(if `NTFY_TOPIC` is set) pushed as *"🤖 would …"*. Only
+`AUTOMATION_DRY_RUN=false` lets it call the Bosch SHC / Hue bridge.
+
+| rule | fires when | action |
+|---|---|---|
+| `away_heating_setback` | `home:occupied:bool` == 0 for `AUTOMATION_AWAY_MINUTES` **and** a valve is still > 15 % and a setpoint > setback | every RoomClimateControl → `AUTOMATION_SETBACK_C` (17) |
+| `home_heating_restore` | someone home **and** min setpoint still ≤ setback | every RoomClimateControl → `AUTOMATION_COMFORT_C` (21) |
+| `away_lights_off` | nobody home for `AUTOMATION_LIGHTS_AWAY_MINUTES` **and** `sum(hue_light_on)` ≥ 1 | all Hue `grouped_light` off |
+
+Each rule has a cooldown (15–30 min). The pure engine (`rules.py:evaluate`) is
+unit-tested; the only code that writes to a device is `executors.py`, called
+solely in live mode and best-effort (never raises).
+
+* `GET /state` — the last 20 decisions with reason + result. Check this for a
+  few days before flipping dry-run off.
+* `POST /run` — evaluate once now.
+* Metrics: `automation_up`, `automation_dry_run`, `automation_last_eval_timestamp_seconds`,
+  `automation_rule_matched{rule}`, `automation_action_{planned,executed,failures}_total{rule,action}`.
+* Alerts: `AutomationStalled`, `AutomationActionFailing`, `AutomationRunningLive` (info).
+
 ## Kiosk dashboard
 
 `kiosk.json` (uid `home_kiosk`, "Home Status (Kiosk)") — one phone-sized screen

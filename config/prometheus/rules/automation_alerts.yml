@@ -1,0 +1,29 @@
+groups:
+  - name: automation_alerts
+    rules:
+      - alert: AutomationStalled
+        expr: time() - automation_last_eval_timestamp_seconds > 900
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Automation service has not evaluated for {{ $value | humanizeDuration }}"
+          description: "The automation loop is stuck. `docker logs …-automation-1`."
+
+      - alert: AutomationActionFailing
+        expr: increase(automation_action_failures_total[1h]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Automation failed to apply {{ $labels.action }} ({{ $labels.rule }})"
+          description: "A device write failed. The Bosch SHC or Hue bridge may be unreachable, or the client cert / app key is wrong."
+
+      - alert: AutomationRunningLive
+        expr: automation_dry_run == 0
+        for: 15m
+        labels:
+          severity: info
+        annotations:
+          summary: "Automation is in LIVE mode — it will change heating and lights"
+          description: "AUTOMATION_DRY_RUN=false. This is intentional only if you set it. Rules: away_heating_setback, home_heating_restore, away_lights_off."

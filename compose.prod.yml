@@ -770,6 +770,52 @@ services:
       timeout: 5s
       retries: 3
 
+  # --- Home automation (opt-in, DRY-RUN by default) ---------------
+  # Reads Prometheus and, only if AUTOMATION_DRY_RUN=false, nudges the Bosch
+  # SHC / Hue bridge (heating setback when away, lights off when away).
+  automation:
+    profiles: [automation]
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.automation"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - PROMETHEUS_URL=http://prometheus:9090
+      - AUTOMATION_DRY_RUN=${AUTOMATION_DRY_RUN:-true}
+      - AUTOMATION_INTERVAL_SECONDS=${AUTOMATION_INTERVAL_SECONDS:-300}
+      - AUTOMATION_AWAY_MINUTES=${AUTOMATION_AWAY_MINUTES:-45}
+      - AUTOMATION_SETBACK_C=${AUTOMATION_SETBACK_C:-17}
+      - AUTOMATION_COMFORT_C=${AUTOMATION_COMFORT_C:-21}
+      - AUTOMATION_LIGHTS_AWAY_MINUTES=${AUTOMATION_LIGHTS_AWAY_MINUTES:-20}
+      - BOSCH_SHC_HOST=${BOSCH_SHC_HOST:-}
+      - BOSCH_SHC_CERT_FILE=${BOSCH_SHC_CERT_FILE:-/secrets/bosch-shc-cert.pem}
+      - BOSCH_SHC_KEY_FILE=${BOSCH_SHC_KEY_FILE:-/secrets/bosch-shc-key.pem}
+      - HUE_BRIDGE_HOST=${HUE_BRIDGE_HOST:-}
+      - HUE_APP_KEY=${HUE_APP_KEY:-/secrets/hue_app_key.txt}
+      - NTFY_URL=${NTFY_URL:-https://ntfy.sh}
+      - NTFY_TOPIC=${NTFY_TOPIC:-}
+      - NTFY_TOKEN=${NTFY_TOKEN:-}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./secrets:/secrets:ro
+    deploy:
+      resources:
+        limits: { cpus: '0.2', memory: 128M }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9131/healthz')\""]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+
   # --- Alerting (P0) ------------------------------------------------
   alertmanager:
     image: prom/alertmanager:v0.27.0
