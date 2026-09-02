@@ -1,4 +1,4 @@
-.PHONY: install lint format typecheck test security compose-validate smoke all
+.PHONY: install lint format typecheck test security compose-validate smoke deploy check backup-now all
 
 VENV_BIN ?= $(shell poetry env info --path 2>/dev/null)/bin
 PYTHON ?= $(VENV_BIN)/python
@@ -35,5 +35,14 @@ compose-validate:
 smoke:
 	chmod +x scripts/verify-production.sh
 	./scripts/verify-production.sh
+
+deploy:
+	./scripts/deploy.sh
+
+check:
+	./scripts/deploy.sh --check
+
+backup-now:
+	docker compose -f compose.prod.yml --env-file .env.production run --rm backup once
 
 all: lint typecheck test compose-validate

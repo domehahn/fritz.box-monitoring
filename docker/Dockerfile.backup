@@ -1,0 +1,9 @@
+# restic backup runner for the stack (P1).
+FROM restic/restic:0.17.3
+
+RUN apk add --no-cache coreutils
+COPY docker/backup-entrypoint.sh /usr/local/bin/backup
+RUN chmod +x /usr/local/bin/backup
+
+ENTRYPOINT ["/usr/local/bin/backup"]
+CMD ["loop"]

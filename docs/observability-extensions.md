@@ -251,3 +251,40 @@ docker compose -f compose.prod.yml --profile lantap up -d --build
 # ... watch the dashboard ...
 docker compose -f compose.prod.yml --profile lantap stop lantap-exporter
 ```
+
+---
+
+## Backups — `backup` service
+
+`restic` snapshot of every data volume (`grafana_data`, `prometheus_data`,
+`victoriametrics_data`, `loki_data`, `alertmanager_data`, `home_iot_data`) plus
+`config/`, `secrets/`, `.env.production`, `compose.prod.yml`. Runs every
+`BACKUP_INTERVAL_HOURS` (24), prunes to `--keep-daily 7 --keep-weekly 4
+--keep-monthly 6`.
+
+* **Repo**: local `/repo` by default — set `BACKUP_DIR` to a NAS mount. For
+  cloud, `RESTIC_REPOSITORY=b2:bucket:path` (+ `B2_ACCOUNT_ID`/`B2_ACCOUNT_KEY`)
+  or S3 (`AWS_*`).
+* **Password**: `secrets/restic_password.txt` — **the only way to decrypt; store
+  a copy off-box.**
+* **Metrics**: the run writes `backup_last_success_timestamp_seconds`,
+  `backup_last_run_success`, `backup_snapshots`, `backup_repository_bytes` to a
+  textfile that `node-exporter` scrapes. Alerts `BackupStale` (>36 h),
+  `BackupFailing`, `BackupMetricsMissing`.
+* **On demand**: `make backup-now`. **Restore**:
+  `docker run --rm -e RESTIC_PASSWORD_FILE=... -v <repo>:/repo -v <target>:/out \
+   restic/restic -r /repo restore latest --target /out`.
+
+## Deploying changes — `scripts/deploy.sh`
+
+Docker Desktop can leave a container serving a **stale bind-mounted file** after
+an edit (seen repeatedly). `make deploy` (= `scripts/deploy.sh`):
+
+1. validates prometheus config + all rule files, `alertmanager.yml`, every
+   dashboard JSON, and `docker compose config`;
+2. hashes each mounted file/dir **inside the running container** vs the host and
+   `--force-recreate`s only the services that actually drifted;
+3. waits (≤ 180 s) for every container to report healthy.
+
+`make check` validates only; `scripts/deploy.sh --all` force-recreates
+everything.
