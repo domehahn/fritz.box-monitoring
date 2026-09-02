@@ -1001,3 +1001,51 @@ def test_dockerstats_config_prefers_docker_host(monkeypatch):
     assert DockerStatsConfig.from_env().socket_path == "tcp://proxy:2375"
     monkeypatch.delenv("DOCKER_HOST")
     assert DockerStatsConfig.from_env().socket_path == "/var/run/docker.sock"
+
+
+# --------------------------------------------------------------------------- #
+# automation (pure rule engine)
+# --------------------------------------------------------------------------- #
+def test_automation_away_setback_and_restore():
+    from home_iot.automation.rules import Snapshot, Tunables, evaluate
+
+    tun = Tunables()
+    away = Snapshot(occupied_now=0.0, occupied_window_max=0.0, valve_max=40.0,
+                    setpoint_min=21.0, setpoint_max=21.0, lights_on=0.0)
+    d = evaluate(away, {}, now=10_000.0, tun=tun)
+    names = {x.rule for x in d}
+    assert "away_heating_setback" in names
+    setback = next(x for x in d if x.rule == "away_heating_setback")
+    assert setback.action.kind == "bosch_setpoints"
+    assert setback.action.params["celsius"] == tun.setback_c
+
+    home = Snapshot(occupied_now=1.0, occupied_window_max=1.0, valve_max=0.0,
+                    setpoint_min=17.0, setpoint_max=17.0, lights_on=0.0)
+    d2 = evaluate(home, {}, now=10_000.0, tun=tun)
+    assert {x.rule for x in d2} == {"home_heating_restore"}
+    assert next(iter(d2)).action.params["celsius"] == tun.comfort_c
+
+
+def test_automation_cooldown_and_missing_data():
+    from home_iot.automation.rules import Snapshot, evaluate
+
+    away = Snapshot(occupied_now=0.0, occupied_window_max=0.0, valve_max=40.0,
+                    setpoint_min=21.0, setpoint_max=21.0, lights_on=2.0)
+    # fired 100s ago, cooldown is 1800s -> suppressed
+    d = evaluate(away, {"away_heating_setback": 9_900.0, "away_lights_off": 9_900.0},
+                 now=10_000.0)
+    assert "away_heating_setback" not in {x.rule for x in d}
+
+    # all-None snapshot -> no rule fires, no crash
+    assert evaluate(Snapshot(), {}, now=10_000.0) == []
+
+
+def test_automation_lights_off_only_when_on():
+    from home_iot.automation.rules import Snapshot, evaluate
+
+    base = dict(occupied_now=0.0, occupied_window_max=0.0, valve_max=0.0,
+                setpoint_min=21.0, setpoint_max=21.0)
+    assert not [x for x in evaluate(Snapshot(lights_on=0.0, **base), {}, 10_000.0)
+                if x.rule == "away_lights_off"]
+    assert [x for x in evaluate(Snapshot(lights_on=3.0, **base), {}, 10_000.0)
+            if x.rule == "away_lights_off"]
