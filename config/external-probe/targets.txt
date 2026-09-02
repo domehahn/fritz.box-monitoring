@@ -1,0 +1,11 @@
+# URLs to probe from outside (GitHub Actions) — one per line, # comments ok.
+# These run from a public runner, so they test what the *internet* sees:
+# ISP reachability, port forwards, DynDNS, TLS certs.
+#
+# Fill in your own public endpoints, e.g.:
+# https://yourname.myfritz.net
+# https://vault.example.com
+# https://grafana.example.com/login
+#
+# Leave empty to only check the public IP + DynDNS (set PROBE_DDNS_HOST / the
+# EXTERNAL_PROBE_DDNS_HOST repo variable for that).

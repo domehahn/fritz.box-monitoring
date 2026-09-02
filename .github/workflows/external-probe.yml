@@ -1,0 +1,36 @@
+name: external-probe
+
+# Probe the home connection from an off-site vantage point. Internal blackbox
+# probes can't see an ISP outage, a stuck DynDNS updater, or a public-IP change.
+#
+# Configure (Settings -> Secrets and variables -> Actions):
+#   secret  NTFY_TOPIC              e.g. fritz-mon-xxxxxxxx   (required for alerts)
+#   secret  NTFY_URL                default https://ntfy.sh   (optional)
+#   variable EXTERNAL_PROBE_DDNS_HOST  e.g. yourname.myfritz.net (optional)
+#   variable EXTERNAL_PROBE_TARGETS    space-separated URLs, or edit
+#                                      config/external-probe/targets.txt
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: external-probe
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe
+        env:
+          NTFY_URL: ${{ secrets.NTFY_URL }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          PROBE_DDNS_HOST: ${{ vars.EXTERNAL_PROBE_DDNS_HOST }}
+          PROBE_TARGETS: ${{ vars.EXTERNAL_PROBE_TARGETS }}
+        run: bash scripts/external-probe.sh
