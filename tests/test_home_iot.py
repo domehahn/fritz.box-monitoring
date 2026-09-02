@@ -994,6 +994,46 @@ def test_dockerstats_connection_selects_tcp_or_unix():
     assert u.__class__.__name__ == "_UnixHTTPConnection"
 
 
+def test_bufferbloat_grade_and_summarise():
+    from home_iot.bufferbloat.exporter import BufferbloatResult, grade, summarise
+
+    assert grade(0.001) == ("A", 0.0)
+    assert grade(0.02)[0] == "B"
+    assert grade(0.05)[0] == "C"
+    assert grade(0.15)[0] == "D"
+    assert grade(0.5) == ("F", 4.0)
+
+    s = summarise([0.010, 0.012, 0.011, 0.0, 0.050, -1.0])
+    assert s["min"] == 0.010
+    assert s["count"] == 4.0
+    assert 0.011 <= s["p50"] <= 0.012
+    assert s["p95"] == 0.050
+    assert summarise([])["count"] == 0.0
+
+    r = BufferbloatResult(idle={"p50": 0.010}, loaded_down={"p50": 0.085},
+                          loaded_up={"p50": 0.010})
+    assert abs(r.increase_down - 0.075) < 1e-9
+    assert r.increase_up == 0.0  # clamped at 0
+
+
+def test_bufferbloat_exporter_render():
+    from home_iot.bufferbloat.exporter import BufferbloatExporter, BufferbloatResult
+
+    exp = BufferbloatExporter()
+    exp.update(BufferbloatResult(
+        success=True,
+        idle={"min": 0.008, "p50": 0.010, "p95": 0.015, "count": 12.0},
+        loaded_down={"min": 0.04, "p50": 0.085, "p95": 0.12, "count": 20.0},
+        loaded_up={"min": 0.02, "p50": 0.03, "p95": 0.04, "count": 20.0},
+        down_mbps=240.0, up_mbps=40.0,
+    ))
+    body = exp.render().decode()
+    assert 'bufferbloat_idle_latency_seconds{quantile="p50"} 0.01' in body
+    assert "bufferbloat_increase_down_seconds 0.075" in body
+    assert "bufferbloat_grade 3.0" in body  # +75ms -> D
+    assert "bufferbloat_download_mbps 240.0" in body
+
+
 def test_dockerstats_config_prefers_docker_host(monkeypatch):
     from home_iot.dockerstats.exporter import DockerStatsConfig
 

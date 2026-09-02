@@ -222,3 +222,9 @@ scrape_configs:
     scrape_interval: 300s
     static_configs:
       - targets: ['speedtest-exporter:9125']
+
+  # Latency-under-load (compose --profile bufferbloat). DOWN unless enabled.
+  - job_name: 'bufferbloat_exporter'
+    scrape_interval: 60s
+    static_configs:
+      - targets: ['bufferbloat-exporter:9132']

@@ -935,6 +935,38 @@ services:
       timeout: 5s
       retries: 3
 
+  # Latency-under-load (bufferbloat). Moves a few hundred MB per run — interval
+  # floored at 300s, default 900s. Opt-in (profile: bufferbloat).
+  bufferbloat-exporter:
+    profiles: [bufferbloat]
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.bufferbloat"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - BUFFERBLOAT_INTERVAL_SECONDS=${BUFFERBLOAT_INTERVAL_SECONDS:-900}
+      - BUFFERBLOAT_TARGET_HOST=${BUFFERBLOAT_TARGET_HOST:-1.1.1.1}
+      - BUFFERBLOAT_TARGET_PORT=${BUFFERBLOAT_TARGET_PORT:-443}
+      - BUFFERBLOAT_LOAD_SECONDS=${BUFFERBLOAT_LOAD_SECONDS:-8}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    deploy:
+      resources:
+        limits: { cpus: '0.5', memory: 128M }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9132/healthz')\""]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+
 networks:
   backend:
     internal: true
