@@ -959,12 +959,19 @@ def test_digest_build_report_monthly_wording():
         "avg_over_time(home:network_health:score[30d])": 0.97,
         "min_over_time(home:network_health:score[30d])": 0.6,
         "avg_over_time(home:health:internet_reachability[30d])": 0.998,
+        "avg_over_time(isp:attainment:down_ratio[30d])": 0.88,
+        "min_over_time(isp:attainment:down_ratio[30d])": 0.41,
+        "count_over_time((isp:attainment:down_ratio < 0.8)[30d:1h])": 6.0,
+        "isp:reference:down_mbps": 1000.0,
     }
     title, body = build_report(
         lambda e: scalars.get(e), lambda e: [], "30d", "Monthly"
     )
     assert "Monthly network digest" in title
     assert "of the month" in body
+    assert "ISP SLA (evidence)" in body
+    assert "1000 Mbit/s" in body
+    assert "6 test(s) below 80%" in body
 
 
 def test_digest_seconds_until_monthly():

@@ -68,6 +68,22 @@ def build_report(
             ip = m.get("ip", "?")
             L.append(f"  • {names.get(ip) or ip} — {_gb(v)}")
 
+    # ISP SLA — only if the speedtest profile has been feeding data
+    isp_att = q(f"avg_over_time(isp:attainment:down_ratio[{window}])")
+    if isp_att is not None:
+        worst = q(f"min_over_time(isp:attainment:down_ratio[{window}])")
+        low = q(
+            f"count_over_time((isp:attainment:down_ratio < 0.8)[{window}:1h])"
+        )
+        ref = q("isp:reference:down_mbps")
+        head = "**ISP SLA (evidence)**" if period == "Monthly" else "**ISP delivery**"
+        L.append(
+            f"{head} — avg {_pct(isp_att)} of "
+            + (f"{ref:.0f} Mbit/s" if ref else "the line rate")
+            + f", worst {_pct(worst)}"
+            + (f", {int(low)} test(s) below 80%" if low else "")
+        )
+
     price = q(f"avg_over_time(energy_price_eur_per_kwh[{window}])")
     if price is not None:
         L.append(f"**Electricity** — avg {_eur(price)}/kWh")

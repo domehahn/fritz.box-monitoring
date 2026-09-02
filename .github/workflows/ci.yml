@@ -99,7 +99,8 @@ jobs:
                         /config/prometheus/rules/automation_alerts.yml \
                         /config/prometheus/rules/slo_rules.yml \
                         /config/prometheus/rules/bufferbloat_alerts.yml \
-                        /config/prometheus/rules/netwatch_alerts.yml
+                        /config/prometheus/rules/netwatch_alerts.yml \
+                        /config/prometheus/rules/isp_sla_rules.yml
 
       - name: Validate Caddyfile
         run: |
