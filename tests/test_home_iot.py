@@ -1060,6 +1060,46 @@ def test_netwatch_exporter_flags_new_only():
     assert 'device_known{mac="CC:CC:CC:CC:CC:CC",name="New-but-allowed"} 1' in body
 
 
+def test_sungrow_parse_real():
+    from home_iot.sungrow.exporter import SungrowExporter, parse_real
+
+    # trimmed from a live WiNet-S2 SH25T "real" response
+    items = [
+        {"data_name": "I18N_COMMON_PV_DAYILY_ENERGY_GENERATION", "data_value": "13.7", "data_unit": "kWh"},
+        {"data_name": "I18N_COMMON_PV_TOTAL_ENERGY_GENERATION", "data_value": "44444.4", "data_unit": "kWh"},
+        {"data_name": "I18N_COMMON_RUNNING_STATE", "data_value": "I18N_COMMON_ON_GRID_OPERATION", "data_unit": ""},
+        {"data_name": "I18N_COMMON_AIR_TEM_INSIDE_MACHINE", "data_value": "52.8", "data_unit": "℃"},
+        {"data_name": "I18N_COMMON_FEED_NETWORK_TOTAL_ACTIVE_POWER", "data_value": "3.83", "data_unit": "kW"},
+        {"data_name": "I18N_COMMON_LOAD_TOTAL_ACTIVE_POWER", "data_value": "0.338", "data_unit": "kW"},
+        {"data_name": "I18N_COMMON_TOTAL_DCPOWER", "data_value": "4.550", "data_unit": "kW"},
+        {"data_name": "I18N_COMMON_ENERGY_GET_FROM_GRID_DAILY", "data_value": "5.6", "data_unit": "kWh"},
+        {"data_name": "I18N_COMMON_TOTAL_ELECTRIC_GRID_GET_POWER", "data_value": "13479.4", "data_unit": "kWh"},
+        {"data_name": "I18N_COMMON_DAILY_FEED_NETWORK_VOLUME", "data_value": "9.1", "data_unit": "kWh"},
+        {"data_name": "I18N_COMMON_TOTAL_FEED_NETWORK_VOLUME", "data_value": "28462.7", "data_unit": "kWh"},
+        {"data_name": "I18N_COMMON_DAILY_DIRECT_CONSUMPTION_ELECTRICITY_PV", "data_value": "4.5", "data_unit": "kWh"},
+        {"data_name": "I18N_COMMON_TOTAL_DIRECT_POWER_CONSUMPTION_PV", "data_value": "13966.9", "data_unit": "kWh"},
+        {"data_name": "I18N_COMMON_MAXIMUM_APPARENT_POWER_X", "data_value": "--", "data_unit": "kVA"},
+    ]
+    r = parse_real(items)
+    assert r.pv_power_w == 4550.0
+    assert r.load_power_w == 338.0
+    assert r.grid_export_power_w == 3830.0
+    assert r.grid_power_w == -3830.0            # exporting -> negative
+    assert r.grid_import_day_wh == 5600.0
+    assert r.grid_export_total_wh == 28462700.0
+    assert r.running_state == "ON_GRID_OPERATION"
+    assert r.house_day_wh == 5600.0 + 4500.0    # import + self-consumption
+    assert r.temperature_c == 52.8
+
+    exp = SungrowExporter()
+    exp.update(r, ok=True)
+    out = exp.render().decode()
+    assert "sungrow_pv_power_watts 4550.0" in out
+    assert "sungrow_grid_power_watts -3830.0" in out
+    assert 'energy_power_watts{source="sungrow"} 338.0' in out
+    assert "sungrow_house_consumption_day_wh 10100.0" in out
+
+
 def test_annotator_transitions():
     from home_iot.annotator.exporter import OpenAnn, transitions
 

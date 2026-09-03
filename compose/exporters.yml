@@ -212,6 +212,41 @@ services:
       timeout: 5s
       retries: 3
 
+  # Sungrow SH-series PV inverter via the WiNet-S(2) local WebSocket. Always
+  # on; idle until SUNGROW_HOST is set. Reads via the same read-only login the
+  # WiNet-S web UI uses — no cloud, no Modbus.
+  sungrow-exporter:
+    image: ghcr.io/domehahn/fritz-box-monitoring/home-iot:v1.0.0
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.sungrow"]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    networks:
+      - backend
+      - fritz_egress
+    environment:
+      - SUNGROW_HOST=${SUNGROW_HOST:-}
+      - SUNGROW_WS_PORT=${SUNGROW_WS_PORT:-443}
+      - SUNGROW_USERNAME=${SUNGROW_USERNAME:-user}
+      - SUNGROW_PASSWORD=${SUNGROW_PASSWORD:-/secrets/sungrow_password.txt}
+      - SUNGROW_INTERVAL_SECONDS=${SUNGROW_INTERVAL_SECONDS:-30}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./secrets:/secrets:ro
+    deploy:
+      resources:
+        limits: { cpus: '0.2', memory: 96M }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:9135/healthz')\""]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+
   # P1 — weekly CVE scan of the running images -> node-exporter textfile.
   lantap-exporter:
     profiles: [lantap]
