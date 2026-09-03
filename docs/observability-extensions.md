@@ -341,6 +341,36 @@ exporter up (0.10). Recorded every 30 s with its five components
 `NetworkHealthCritical` (< 0.6). Dashboard **Network Health & Traffic Mix** —
 one traffic-light number + a 24 h / 7 d average + the component breakdown.
 
+## Solar / PV — `home_iot.sungrow`
+
+For a Sungrow SH-series hybrid inverter with a **WiNet-S / WiNet-S2** dongle.
+Reads the dongle's **local WebSocket** (`wss://<host>/ws/home/overview`) with
+the read-only web-UI login (`user` / `pw1111` by default) — no iSolarCloud, and
+**not** Modbus (the WiNet-S only allows one Modbus master and the cloud upload
+holds it; every register read comes back "device busy").
+
+`SUNGROW_HOST` = the WiNet-S IP (FRITZ!Box device list, usually shows as
+`espressif`). Always on; idle until set. Polls every `SUNGROW_INTERVAL_SECONDS`
+(30 — the WiNet-S rate-limits faster with `result_code 201`).
+
+Metrics: `sungrow_{pv,ac,load}_power_watts`, `sungrow_grid_power_watts`
+(+ import / − export), and day + lifetime `*_wh` counters for PV yield, grid
+import, grid export, PV self-consumption and derived house consumption. Also
+mirrored as `energy_power_watts{source="sungrow"}` /
+`energy_import_watt_hours_total{source="sungrow"}` for the existing rules.
+
+`sungrow_rules.yml` turns that into money and ratios — **set your tariff** in
+the two `vector(...)` lines (`energy:tariff:import_eur_per_kwh`,
+`…:feedin_eur_per_kwh`):
+
+* `home:grid:{import_cost,feedin_revenue,net_cost}_eur_today`
+* `home:grid:power_cost_eur_per_hour` (live)
+* `home:pv:self_consumption_ratio`, `home:house:autarky_ratio`
+* `energy_price_eur_per_kwh{source="grid_fixed"}` so the price panels show the real tariff
+
+Alerts: `SungrowExporterDown`, `SolarNoProductionMidday`, `InverterOverheating`.
+Panels: **Electricity Price & Consumption** → *Solar / PV* row.
+
 ## Outage annotations — `home_iot.annotator`
 
 Always on, port 9134. Watches `ANNOTATOR_SIGNALS` (`internet,dns`, also

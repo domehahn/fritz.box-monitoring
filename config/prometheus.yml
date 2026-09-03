@@ -216,6 +216,11 @@ scrape_configs:
     static_configs:
       - targets: ['annotator:9134']
 
+  - job_name: 'sungrow'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['sungrow-exporter:9135']
+
   # Per-device bandwidth (compose --profile lantap). DOWN unless enabled.
   - job_name: 'lantap'
     scrape_interval: 15s

@@ -41,6 +41,7 @@ Ports are on the `backend` network unless noted. "Profile" is the
 | FRITZ!DECT plugs | `fritzdect-exporter` :9123 | `smarthome_alerts.yml`, `energy_rules.yml` | `smarthome_fleet`, `home_energy` | `Smarthome*` |
 | Weather | `weather-exporter` :9124 | `climate_rules.yml` | `home_climate` | — |
 | Electricity price + consumption | `energy-exporter` :9128 | `energy_rules.yml` | `home_energy` | `Energy*` |
+| Solar / PV (Sungrow) | `sungrow-exporter` :9135 | `sungrow_rules.yml` | `home_energy` | `SungrowExporterDown`, `SolarNoProductionMidday`, `InverterOverheating` |
 | Home automation (dry-run) | `automation` :9131 (profile `automation`) | `automation_alerts.yml` | — | `Automation{Stalled,ActionFailing,RunningLive}` |
 
 ## Host & stack

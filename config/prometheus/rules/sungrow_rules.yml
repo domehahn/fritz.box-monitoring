@@ -1,0 +1,92 @@
+groups:
+  # ---------------------------------------------------------------------------
+  # Your electricity tariff. EDIT the two vector() values (EUR per kWh).
+  #   Arbeitspreis (grid import)  : 21.23 ct  -> 0.2123
+  #   Einspeisevergütung (export) :  7.00 ct  -> 0.0700
+  # ---------------------------------------------------------------------------
+  - name: sungrow_tariff
+    interval: 1m
+    rules:
+      - record: energy:tariff:import_eur_per_kwh
+        expr: vector(0.2123)
+      - record: energy:tariff:feedin_eur_per_kwh
+        expr: vector(0.0700)
+      # so the generic price series / existing dashboards show the real price
+      - record: energy_price_eur_per_kwh
+        expr: vector(0.2123)
+        labels: {source: grid_fixed}
+
+  - name: sungrow_recording
+    interval: 1m
+    rules:
+      # today, in kWh
+      - record: home:pv:yield_kwh_today
+        expr: sungrow_pv_yield_day_wh / 1000
+      - record: home:grid:import_kwh_today
+        expr: sungrow_grid_import_day_wh / 1000
+      - record: home:grid:export_kwh_today
+        expr: sungrow_grid_export_day_wh / 1000
+      - record: home:house:consumption_kwh_today
+        expr: sungrow_house_consumption_day_wh / 1000
+
+      # money today
+      - record: home:grid:import_cost_eur_today
+        expr: >
+          (sungrow_grid_import_day_wh / 1000)
+          * scalar(energy:tariff:import_eur_per_kwh)
+      - record: home:grid:feedin_revenue_eur_today
+        expr: >
+          (sungrow_grid_export_day_wh / 1000)
+          * scalar(energy:tariff:feedin_eur_per_kwh)
+      - record: home:grid:net_cost_eur_today
+        expr: home:grid:import_cost_eur_today - home:grid:feedin_revenue_eur_today
+
+      # ratios (0..1)
+      - record: home:pv:self_consumption_ratio
+        expr: >
+          sungrow_self_consumption_day_wh
+          / clamp_min(sungrow_pv_yield_day_wh, 1)
+      - record: home:house:autarky_ratio
+        expr: >
+          sungrow_self_consumption_day_wh
+          / clamp_min(sungrow_house_consumption_day_wh, 1)
+
+      # live running cost/revenue of the grid flow
+      - record: home:grid:power_cost_eur_per_hour
+        expr: >
+          (clamp_min(sungrow_grid_power_watts, 0) / 1000)
+            * scalar(energy:tariff:import_eur_per_kwh)
+          - (clamp_min(-sungrow_grid_power_watts, 0) / 1000)
+            * scalar(energy:tariff:feedin_eur_per_kwh)
+
+  - name: sungrow_alerts
+    rules:
+      - alert: SungrowExporterDown
+        expr: sungrow_up == 0 or absent(sungrow_up)
+        for: 15m
+        labels:
+          severity: info
+        annotations:
+          summary: "sungrow-exporter has no reading from the WiNet-S"
+          description: "PV/grid metrics are stale. Check the WiNet-S at its IP and `docker logs …-sungrow-exporter-1`."
+
+      - alert: SolarNoProductionMidday
+        expr: >
+          sungrow_pv_power_watts < 100
+          and increase(sungrow_pv_yield_day_wh[2h]) < 100
+          and on() (hour() >= 11 <= 15)
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No solar production around noon"
+          description: "PV power {{ $value }} W with no daily-yield increase for 2h between 11:00–15:00 UTC — inverter fault, shading, or a grid issue. Check iSolarCloud."
+
+      - alert: InverterOverheating
+        expr: sungrow_temperature_celsius > 75
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Inverter internal temperature {{ $value | printf \"%.0f\" }} °C"
+          description: "The SH-series derates above ~80 °C. Check ventilation / ambient temperature around the inverter."
