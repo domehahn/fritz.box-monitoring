@@ -60,7 +60,7 @@ jobs:
           docker compose -f compose.prod.yml --profile admin --profile iperf --profile smarthome --profile weather --profile speedtest --profile lantap --profile proxy config
 
       - name: Secret scan (gitleaks)
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
 
