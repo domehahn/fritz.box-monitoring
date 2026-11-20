@@ -9,6 +9,11 @@ All dashboards are provisioned from
 | `fritz_noc` | **Home Network NOC** | First screen when "the internet is slow". Is something wrong, what, where, since when |
 | `fritz_mesh_diag` | **Deep Mesh & Link Diagnostics** | 100% root-cause transparency for Router ⟷ Repeater ⟷ Repeater ⟷ Client, repeater power inventory, link speeds, band fallback & Loki/Tempo correlation |
 | `isp_sla_report` | **ISP SLA & Quality Audit Report** | Contract fulfillment ratio (30d), Bufferbloat delta, latency under load, and ISP outage dispute protocol |
+| `fritz_spectrum` | **Wi-Fi Spectrum & Interference** | 2.4 / 5 GHz channel load, non-Wi-Fi interference %, channel bandwidth & DFS 5 GHz radar wait states |
+| `fritz_security` | **DNS & Network Security** | Pi-hole / AdGuard Home blocking ratio, malicious domain blocks, query volume & security events |
+| `fritz_ports` | **Port Forwarding & UPnP Audit** | Active WAN port mappings, UPnP IGD dynamic port forward audit & security breach alerts |
+| `fritz_telephony` | **VoIP Telephony & SIP Lines** | SIP line registration status, active phone numbers & TR-064 telephony diagnostics |
+| `fritz_battery` | **IoT Battery & Sensor Health** | Battery level % for DECT thermostats, Bosch, Blink & Shelly sensors with replacement alerts (< 25%) |
 | `fritz_client` | **Client Diagnostics** | Deep-dive on one device (`$device`) |
 | `fritz_probes` | **Network Path Probes** | Active ICMP / DNS latency & loss per hop (LAN → WAN → DNS) |
 | `fritz_events` | **Network Events & Forensics** | Derived connect/disconnect/WAN/reboot events (Loki) — see [event-pipeline.md](event-pipeline.md) |

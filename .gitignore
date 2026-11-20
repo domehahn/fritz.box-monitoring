@@ -89,6 +89,11 @@ secrets/
 # P1 backups (restic repo — never commit)
 /backups/
 !/backups/.gitkeep
+backups/fritzbox_configs/
+
+# Generated executive reports
+/reports/*.html
+!/reports/.gitkeep
 
 # deploy.sh drift-tracking state
 /.deploy-state/

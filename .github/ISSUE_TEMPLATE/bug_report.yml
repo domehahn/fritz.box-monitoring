@@ -1,0 +1,56 @@
+name: Bug Report
+description: Report an issue or bug in fritz.box-monitoring
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report an issue! Please provide as much detail as possible.
+  - type: input
+    id: environment
+    attributes:
+      label: FRITZ!Box Model & Firmware Version
+      description: e.g. FRITZ!Box 7590 AX, FRITZ!OS 8.00
+      placeholder: FRITZ!Box 7590 AX (FRITZ!OS 8.00)
+    validations:
+      required: true
+  - type: dropdown
+    id: stack_component
+    attributes:
+      label: Affected Component
+      options:
+        - Exporter (fritz-monitoring)
+        - Prometheus / Metrics
+        - Grafana Dashboards
+        - Loki / Log Pipeline
+        - Tempo / Distributed Tracing
+        - Cloudflare Zero Trust / Tunnel
+        - Speedtest / IoT Sub-exporter
+        - Automation / Auto-Remediation
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the Bug
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: Exact steps to reproduce the behavior.
+      placeholder: |
+        1. Start stack with 'docker compose up -d'
+        2. Open dashboard 'Mesh Topology'
+        3. See error ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs & Diagnostic Output
+      description: Relevant logs from docker compose logs fritzbox-exporter or alloy.
+      render: shell

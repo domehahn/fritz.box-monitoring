@@ -36,6 +36,29 @@ class WlanChannelInfo:
 
 
 @dataclass(frozen=True)
+class PortMappingEntry:
+    """Active port forwarding mapping (manual or UPnP IGD)."""
+
+    external_port: int
+    protocol: str
+    internal_client: str
+    internal_port: int
+    description: str
+    enabled: bool
+    lease_duration: int
+    is_upnp: bool
+
+
+@dataclass(frozen=True)
+class VoipNumberInfo:
+    """Configured VoIP / SIP phone number and registration state."""
+
+    number: str
+    is_registered: bool
+    provider: str = ""
+
+
+@dataclass(frozen=True)
 class MonitoringSnapshot:
     """Immutable snapshot of all collected Fritz!Box monitoring metrics."""
 
@@ -44,6 +67,8 @@ class MonitoringSnapshot:
     dsl: Optional[DslStats] = None
     wlan: Optional[WlanStats] = None
     wlan_channels: Tuple[WlanChannelInfo, ...] = field(default_factory=tuple)
+    port_mappings: Tuple[PortMappingEntry, ...] = field(default_factory=tuple)
+    voip_numbers: Tuple[VoipNumberInfo, ...] = field(default_factory=tuple)
     mesh_nodes: Tuple[Node, ...] = field(default_factory=tuple)
     devices: Tuple[Device, ...] = field(default_factory=tuple)
     collection_duration_seconds: float = 0.0
@@ -239,6 +264,81 @@ class CollectorService:
                 with trace_span("fritz.discover_mesh"):
                     mesh_topology = client.discover_mesh()
 
+                # Port Forwarding & UPnP Audit
+                port_mappings: list[PortMappingEntry] = []
+                with trace_span("fritz.get_port_mappings"):
+                    fc = getattr(client, "fc", None)
+                    if fc is not None and hasattr(fc, "services"):
+                        srv = None
+                        for cand in ("WANIPConnection1", "WANPPPConnection1"):
+                            if cand in fc.services:
+                                srv = cand
+                                break
+                        if srv:
+                            try:
+                                num_info = fc.call_action(srv, "GetPortMappingNumberOfEntries")
+                                num = int(num_info.get("NewPortMappingNumberOfEntries", 0) or 0)
+                                for i in range(min(num, 100)):
+                                    try:
+                                        p_entry = fc.call_action(
+                                            srv, "GetGenericPortMappingEntry", NewPortMappingIndex=i
+                                        )
+                                        ext_p = int(p_entry.get("NewExternalPort", 0) or 0)
+                                        proto = str(p_entry.get("NewPortMappingProtocol", "TCP") or "TCP")
+                                        c_ip = str(p_entry.get("NewInternalClient", "") or "")
+                                        int_p = int(p_entry.get("NewInternalPort", ext_p) or ext_p)
+                                        desc = str(p_entry.get("NewPortMappingDescription", "") or "")
+                                        en = bool(p_entry.get("NewEnabled", True))
+                                        lease = int(p_entry.get("NewLeaseDuration", 0) or 0)
+                                        is_upnp = lease > 0 or any(
+                                            kw in desc.lower()
+                                            for kw in ("upnp", "miniupnp", "teredo", "xbox", "playstation", "skype")
+                                        )
+                                        if ext_p > 0:
+                                            port_mappings.append(
+                                                PortMappingEntry(
+                                                    external_port=ext_p,
+                                                    protocol=proto,
+                                                    internal_client=c_ip,
+                                                    internal_port=int_p,
+                                                    description=desc,
+                                                    enabled=en,
+                                                    lease_duration=lease,
+                                                    is_upnp=is_upnp,
+                                                )
+                                            )
+                                    except Exception:
+                                        break
+                            except Exception:
+                                pass
+
+                # VoIP / SIP Line Health
+                voip_numbers: list[VoipNumberInfo] = []
+                with trace_span("fritz.get_voip"):
+                    if fc is not None and hasattr(fc, "services") and "X_VoIP1" in fc.services:
+                        try:
+                            voip_info = None
+                            for act in ("X_AVM-DE_GetPhoneNumbers", "X_AVM-DE_GetNumbers"):
+                                try:
+                                    voip_info = fc.call_action("X_VoIP1", act)
+                                    break
+                                except Exception:
+                                    continue
+                            if voip_info:
+                                raw_n = (
+                                    voip_info.get("NewPhoneNumbers", "")
+                                    or voip_info.get("NewNumbers", "")
+                                )
+                                if isinstance(raw_n, str):
+                                    for num_s in raw_n.split(","):
+                                        n_clean = num_s.strip()
+                                        if n_clean:
+                                            voip_numbers.append(
+                                                VoipNumberInfo(number=n_clean, is_registered=True)
+                                            )
+                        except Exception:
+                            pass
+
                 duration = time.monotonic() - start_time
                 snapshot = MonitoringSnapshot(
                     timestamp=now,
@@ -246,6 +346,8 @@ class CollectorService:
                     dsl=dsl,
                     wlan=wlan,
                     wlan_channels=tuple(wlan_channels),
+                    port_mappings=tuple(port_mappings),
+                    voip_numbers=tuple(voip_numbers),
                     mesh_nodes=mesh_topology.nodes,
                     devices=mesh_topology.devices,
                     collection_duration_seconds=duration,

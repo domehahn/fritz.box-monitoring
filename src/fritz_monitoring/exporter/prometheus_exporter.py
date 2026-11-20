@@ -347,6 +347,42 @@ class FritzPrometheusExporter:
             registry=self.registry,
         )
 
+        # Port Forwarding & UPnP IGD Metrics
+        self.port_mapping_entry = Gauge(
+            "fritz_port_mapping_entry",
+            "Active port mapping on WAN interface (value=1)",
+            ["port", "protocol", "internal_client", "internal_port", "description", "is_upnp"],
+            registry=self.registry,
+        )
+        self.total_port_mappings = Gauge(
+            "fritz_total_port_mappings",
+            "Total number of active port mappings",
+            registry=self.registry,
+        )
+        self.upnp_port_mappings = Gauge(
+            "fritz_upnp_port_mappings",
+            "Number of dynamically opened UPnP port mappings",
+            registry=self.registry,
+        )
+
+        # VoIP / SIP Telephony Metrics
+        self.voip_number_registered = Gauge(
+            "fritz_voip_number_registered",
+            "1 if the VoIP phone number is registered with provider, 0 otherwise",
+            ["number"],
+            registry=self.registry,
+        )
+        self.voip_total_numbers = Gauge(
+            "fritz_voip_total_numbers",
+            "Total configured VoIP telephone numbers",
+            registry=self.registry,
+        )
+        self.voip_registered_numbers = Gauge(
+            "fritz_voip_registered_numbers",
+            "Number of currently successfully registered VoIP numbers",
+            registry=self.registry,
+        )
+
     def render_snapshot(
         self,
         snapshot: Optional[MonitoringSnapshot],
@@ -458,6 +494,35 @@ class FritzPrometheusExporter:
         self.total_devices.set(total_count)
         self.online_devices.set(online_count)
         self.offline_devices.set(offline_count)
+
+        # Port Forwarding & UPnP IGD Mappings
+        self.port_mapping_entry.clear()
+        port_mappings = getattr(snapshot, "port_mappings", ())
+        self.total_port_mappings.set(len(port_mappings))
+        upnp_count = sum(1 for p in port_mappings if p.is_upnp)
+        self.upnp_port_mappings.set(upnp_count)
+
+        for pm in port_mappings:
+            self.port_mapping_entry.labels(
+                port=str(pm.external_port),
+                protocol=pm.protocol,
+                internal_client=pm.internal_client,
+                internal_port=str(pm.internal_port),
+                description=pm.description,
+                is_upnp="true" if pm.is_upnp else "false",
+            ).set(1 if pm.enabled else 0)
+
+        # VoIP / Telephony Numbers
+        self.voip_number_registered.clear()
+        voip_nums = getattr(snapshot, "voip_numbers", ())
+        self.voip_total_numbers.set(len(voip_nums))
+        reg_count = sum(1 for v in voip_nums if v.is_registered)
+        self.voip_registered_numbers.set(reg_count)
+
+        for vn in voip_nums:
+            self.voip_number_registered.labels(number=vn.number).set(
+                1 if vn.is_registered else 0
+            )
 
         # Render Nodes & Mesh Inventory
         self.node_up.clear()

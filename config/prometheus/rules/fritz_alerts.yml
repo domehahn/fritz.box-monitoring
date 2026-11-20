@@ -99,3 +99,13 @@ groups:
         annotations:
           summary: "FRITZ!Box feature '{{ $labels.feature }}' unavailable to the monitoring account"
           description: "Mesh topology / per-client Wi-Fi / event-log data is degraded. Grant the monitoring user the 'FRITZ!Box Settings' permission — see docs/fritz-permissions.md."
+
+      - alert: FritzVoIPRegistrationFailed
+        expr: fritz_voip_number_registered == 0
+        for: 15m
+        labels:
+          severity: critical
+          category: telephony
+        annotations:
+          summary: "Telefonnummer {{ $labels.number }} ist nicht beim Provider registriert"
+          description: "Die Festnetz-/VoIP-Rufnummer {{ $labels.number }} hat ihre SIP-Registrierung verloren. Keine Telefongespräche möglich!"

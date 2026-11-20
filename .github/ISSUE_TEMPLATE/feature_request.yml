@@ -1,0 +1,30 @@
+name: Feature Request
+description: Suggest an idea or enhancement for fritz.box-monitoring
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea for a new dashboard panel, TR-064 metric, smart home integration, or alert rule? Let us know!
+  - type: textarea
+    id: problem
+    attributes:
+      label: Is your feature request related to a problem?
+      description: A clear and concise description of what the problem or limitation is.
+    validations:
+      required: false
+  - type: textarea
+    id: solution
+    attributes:
+      label: Describe the Solution You'd Like
+      description: A clear and concise description of what you want to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Additional Context or Alternatives Considered
+      description: Any alternative solutions, mockups, or TR-064 API endpoints you've considered.
+    validations:
+      required: false

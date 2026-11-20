@@ -33,3 +33,13 @@ groups:
           severity: warning
         annotations:
           summary: "dockerstats has no container data — socket proxy down?"
+
+      - alert: FritzUnexpectedUpnpPortMapping
+        expr: fritz_port_mapping_entry{is_upnp="true"} == 1
+        for: 1m
+        labels:
+          severity: warning
+          category: port_security
+        annotations:
+          summary: "Neuer dynamischer UPnP-Port {{ $labels.port }}/{{ $labels.protocol }} geöffnet"
+          description: "Gerät {{ $labels.internal_client }} hat eigenmächtig Port {{ $labels.port }} via UPnP ins Internet geöffnet (Beschreibung: {{ $labels.description }})."

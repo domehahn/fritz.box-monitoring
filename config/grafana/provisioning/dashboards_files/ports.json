@@ -1,0 +1,122 @@
+{
+  "uid": "fritz_ports",
+  "title": "UPnP & Port-Forwarding Audit",
+  "tags": [
+    "fritzbox",
+    "security",
+    "ports",
+    "upnp",
+    "firewall"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "editable": true,
+  "graphTooltip": 1,
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Portweiterleitungen & Firewall-Öffnungen",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Gesamte offene Portweiterleitungen",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 1, "w": 12, "h": 4 },
+      "targets": [{ "expr": "fritz_total_port_mappings or vector(0)", "instant": true, "refId": "A" }],
+      "options": { "colorMode": "value", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" } } }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Dynamische UPnP-Freigaben (Automatisches Loch-Bohren)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 12, "y": 1, "w": 12, "h": 4 },
+      "targets": [{ "expr": "fritz_upnp_port_mappings or vector(0)", "instant": true, "refId": "A" }],
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 3 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "Aktive Port-Mappings auf der FRITZ!Box",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 5, "w": 24, "h": 12 },
+      "targets": [
+        {
+          "expr": "fritz_port_mapping_entry",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "__name__": true, "job": true, "instance": true },
+            "renameByName": {
+              "port": "Externer Port",
+              "protocol": "Protokoll",
+              "internal_client": "Ziel-Gerät (IP)",
+              "internal_port": "Interner Port",
+              "description": "Bezeichnung / Anwendung",
+              "is_upnp": "UPnP-Freigabe?",
+              "Value": "Aktiv"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "UPnP-Freigabe?" },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  { "type": "value", "options": { "true": { "text": "⚠️ UPnP (Automatisch)", "color": "orange" }, "false": { "text": "Manuell eingerichtet", "color": "blue" } } }
+                ]
+              },
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Aktiv" },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  { "type": "value", "options": { "0": { "text": "Deaktiviert", "color": "grey" }, "1": { "text": "AKTIV", "color": "green" } } }
+                ]
+              },
+              { "id": "custom.cellOptions", "value": { "type": "color-background" } }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

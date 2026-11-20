@@ -36,14 +36,22 @@ LATENCY_SAMPLES = 8
 class SpeedtestConfig:
     interval_seconds: float = 3600.0
     max_mb: int = 100
+    defer_traffic_threshold_bps: float = 0.0
+    metrics_check_url: str = ""
 
     @classmethod
     def from_env(cls) -> "SpeedtestConfig":
+        import os
+
         return cls(
             interval_seconds=env_float(
                 "SPEEDTEST_INTERVAL_SECONDS", 3600.0, floor=INTERVAL_FLOOR_S
             ),
             max_mb=int(env_float("SPEEDTEST_MAX_MB", 100.0, floor=5.0)),
+            defer_traffic_threshold_bps=env_float(
+                "SPEEDTEST_DEFER_TRAFFIC_BPS", 0.0, floor=0.0
+            ),
+            metrics_check_url=os.getenv("SPEEDTEST_METRICS_CHECK_URL", "").strip(),
         )
 
 
@@ -158,6 +166,10 @@ class SpeedtestExporter:
         self.bytes_up = g(
             "speedtest_bytes_uploaded", "Bytes moved by the last upload test"
         )
+        self.deferred = g(
+            "speedtest_runs_deferred_total",
+            "Total speedtest runs skipped/deferred due to active network traffic",
+        )
 
     def update(self, r: SpeedtestResult) -> None:
         self.last_ts.set(time.time())
@@ -175,7 +187,47 @@ class SpeedtestExporter:
         return generate_latest(self.registry)
 
 
+def check_active_wan_traffic(metrics_url: str, threshold_bps: float) -> bool:
+    """Returns True if ongoing WAN byte rate on FRITZ!Box exceeds threshold_bps."""
+    if not metrics_url or threshold_bps <= 0:
+        return False
+    try:
+        r = requests.get(metrics_url, timeout=5.0)
+        if r.status_code != 200:
+            return False
+
+        sent_rate = 0.0
+        recv_rate = 0.0
+        for line in r.text.splitlines():
+            line = line.strip()
+            if line.startswith("#") or not line:
+                continue
+            if line.startswith("fritz_router_current_bytes_sent_rate") or line.startswith("fritz_wan_current_bytes_sent_rate"):
+                parts = line.split()
+                if len(parts) >= 2:
+                    sent_rate = float(parts[-1])
+            elif line.startswith("fritz_router_current_bytes_received_rate") or line.startswith("fritz_wan_current_bytes_received_rate"):
+                parts = line.split()
+                if len(parts) >= 2:
+                    recv_rate = float(parts[-1])
+
+        total_bps = (sent_rate + recv_rate) * 8.0
+        return total_bps >= threshold_bps
+    except Exception as exc:
+        logger.debug("Could not verify active WAN traffic: {}", exc)
+        return False
+
+
 def collect_sync(cfg: SpeedtestConfig, exp: SpeedtestExporter) -> None:
+    if cfg.defer_traffic_threshold_bps > 0 and cfg.metrics_check_url:
+        if check_active_wan_traffic(cfg.metrics_check_url, cfg.defer_traffic_threshold_bps):
+            logger.info(
+                "Speedtest deferred: active network traffic exceeds threshold of {:.1f} Mbit/s",
+                cfg.defer_traffic_threshold_bps / 1e6,
+            )
+            exp.deferred.inc()
+            return
+
     logger.info("running Cloudflare speed test (~{} MB down) ...", cfg.max_mb)
     r = run_speedtest(cfg)
     exp.update(r)

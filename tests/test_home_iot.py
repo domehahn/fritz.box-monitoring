@@ -364,6 +364,42 @@ def test_speedtest_exporter_render():
     assert "speedtest_download_bits_per_second 9.4e+08" in body
 
 
+def test_speedtest_traffic_deferral(monkeypatch):
+    from home_iot.speedtest.exporter import (
+        SpeedtestConfig,
+        SpeedtestExporter,
+        check_active_wan_traffic,
+        collect_sync,
+    )
+
+    class DummyResponse:
+        status_code = 200
+        text = (
+            "# HELP fritz_router_current_bytes_sent_rate Current send rate\n"
+            "fritz_router_current_bytes_sent_rate 1500000\n"
+            "# HELP fritz_router_current_bytes_received_rate Current receive rate\n"
+            "fritz_router_current_bytes_received_rate 1000000\n"
+        )
+
+    # 2.5 MB/s = 20 Mbps, which is > 10 Mbps
+    monkeypatch.setattr("requests.get", lambda *a, **k: DummyResponse())
+    assert check_active_wan_traffic("http://fake/metrics", 10_000_000.0) is True
+    assert check_active_wan_traffic("http://fake/metrics", 50_000_000.0) is False
+
+    # Verify deferral in collect_sync skips test and increments speedtest_runs_deferred_total
+    exp = SpeedtestExporter()
+    cfg = SpeedtestConfig(
+        interval_seconds=3600.0,
+        max_mb=10,
+        defer_traffic_threshold_bps=10_000_000.0,
+        metrics_check_url="http://fake/metrics",
+    )
+    collect_sync(cfg, exp)
+    body = exp.render().decode()
+    assert "speedtest_runs_deferred_total 1.0" in body
+    assert "speedtest_up" in body
+
+
 # --------------------------------------------------------------------------- #
 # Bosch (extended P2 fields)
 # --------------------------------------------------------------------------- #
