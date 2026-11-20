@@ -53,6 +53,9 @@ class FritzPrometheusExporter:
         )
         self.exporter_build_info.labels(version="1.0.0").set(1)
 
+        # Persistent registry of known mesh nodes across snapshots
+        self._known_mesh_nodes: dict[str, dict[str, Any]] = {}
+
         if self.collector_service is not None:
             self.collector_service.on_error_callback = (
                 lambda err_type: self.scrape_errors_total.labels(type=err_type).inc()
@@ -181,6 +184,48 @@ class FritzPrometheusExporter:
             "fritz_node_info",
             "Node information with labels (value=1)",
             ["name", "mac", "type", "model", "ip", "parent_name"],
+            registry=self.registry,
+        )
+        self.mesh_node_present = Gauge(
+            "fritz_mesh_node_present",
+            "1 if mesh node is registered in network inventory",
+            ["name", "mac", "type", "model"],
+            registry=self.registry,
+        )
+        self.mesh_node_online = Gauge(
+            "fritz_mesh_node_online",
+            "1 if mesh node is online/active, 0 if offline or unplugged",
+            ["name", "mac", "type"],
+            registry=self.registry,
+        )
+        self.mesh_node_power_state = Gauge(
+            "fritz_mesh_node_power_state",
+            "Power and connectivity state of the mesh node (1 for active state)",
+            ["name", "mac", "type", "state"],
+            registry=self.registry,
+        )
+        self.mesh_node_last_seen_seconds = Gauge(
+            "fritz_mesh_node_last_seen_seconds",
+            "Unix timestamp when mesh node was last seen online",
+            ["name", "mac", "type"],
+            registry=self.registry,
+        )
+        self.node_hop_count = Gauge(
+            "fritz_node_hop_count",
+            "Hop distance from router in mesh hierarchy (0=router, 1=direct, 2=behind repeater)",
+            ["name", "mac", "type"],
+            registry=self.registry,
+        )
+        self.node_link_medium = Gauge(
+            "fritz_node_link_medium",
+            "Connection medium to mesh parent (value=1)",
+            ["name", "mac", "type", "medium"],
+            registry=self.registry,
+        )
+        self.node_link_quality_ratio = Gauge(
+            "fritz_node_link_quality_ratio",
+            "Ratio of current link speed to expected link speed (0.0 - 1.0)",
+            ["name", "mac", "type"],
             registry=self.registry,
         )
 
@@ -364,17 +409,36 @@ class FritzPrometheusExporter:
         self.online_devices.set(online_count)
         self.offline_devices.set(offline_count)
 
-        # Render Nodes
+        # Render Nodes & Mesh Inventory
         self.node_up.clear()
         self.node_info.clear()
         self.node_link_rx_kbps.clear()
         self.node_link_tx_kbps.clear()
+        self.mesh_node_present.clear()
+        self.mesh_node_online.clear()
+        self.mesh_node_power_state.clear()
+        self.mesh_node_last_seen_seconds.clear()
+        self.node_hop_count.clear()
+        self.node_link_medium.clear()
+        self.node_link_quality_ratio.clear()
         self.repeater_connected_devices.clear()
         self.powerline_connected_devices.clear()
         self.node_parent.clear()
 
         node_name_to_mac = {n.name: n.mac for n in snapshot.mesh_nodes}
         node_name_to_obj = {n.name: n for n in snapshot.mesh_nodes}
+        current_macs = set()
+
+        # Build parent hierarchy mapping for multi-hop depth
+        parent_map: dict[str, str] = {}
+        for n in snapshot.mesh_nodes:
+            if n.parent_node:
+                parent_map[n.name] = n.parent_node
+
+        def _calc_hop(name: str, depth: int = 0) -> int:
+            if depth > 5 or name not in parent_map:
+                return depth
+            return _calc_hop(parent_map[name], depth + 1)
 
         devices_by_node_name: dict[str, int] = {}
         for dev in devices:
@@ -383,52 +447,125 @@ class FritzPrometheusExporter:
                     devices_by_node_name.get(dev.connected_to, 0) + 1
                 )
 
+        now_ts = now.timestamp()
+
+        # 1. Update inventory with all nodes currently observed in snapshot
         for node in snapshot.mesh_nodes:
-            # Placeholder names the FRITZ!Box hands out to unconfigured /
-            # transient mesh entries would otherwise inflate "Problem nodes"
-            # and the state timeline with phantom offline nodes.
             if node.is_placeholder:
                 continue
 
+            mac = (node.mac or "").upper()
+            if not mac:
+                continue
+
+            current_macs.add(mac)
             node_type = node.kind
-            is_active = node.extra.get("active", True)
+            is_active = bool(node.extra.get("active", True))
             model = node.extra.get("model", node.name)
             parent = node.parent_node or ""
+            rx_kbps = float(node.extra.get("link_rx_kbps", 0))
+            tx_kbps = float(node.extra.get("link_tx_kbps", 0))
+            hop = 0 if node.is_router else max(1, _calc_hop(node.name))
 
-            self.node_up.labels(node.name, node.mac, node_type).set(
-                1 if is_active else 0
-            )
+            # Detect connection medium
+            if node.is_router:
+                medium = "direct"
+            elif node_type == "powerline":
+                medium = "powerline"
+            elif rx_kbps >= 800000:
+                medium = "lan"
+            elif rx_kbps >= 250000:
+                medium = "wlan_5ghz"
+            else:
+                medium = "wlan_2ghz"
+
+            # Compute quality ratio if link exists
+            max_kbps = max(rx_kbps, tx_kbps)
+            quality_ratio = min(1.0, max_kbps / 1000000.0) if max_kbps > 0 else 0.0
+
+            prev_entry = self._known_mesh_nodes.get(mac, {})
+            last_seen = now_ts if is_active else prev_entry.get("last_seen", now_ts)
+
+            self._known_mesh_nodes[mac] = {
+                "name": node.name,
+                "mac": node.mac,
+                "type": node_type,
+                "model": model,
+                "ip": node.ip or "",
+                "parent_name": parent,
+                "is_active": is_active,
+                "is_router": node.is_router,
+                "rx_kbps": rx_kbps,
+                "tx_kbps": tx_kbps,
+                "hop": hop,
+                "medium": medium,
+                "quality_ratio": quality_ratio,
+                "last_seen": last_seen,
+            }
+
+        # 2. Mark any previously known mesh nodes that disappeared as inactive / unpowered
+        for mac, kn in self._known_mesh_nodes.items():
+            if mac not in current_macs:
+                kn["is_active"] = False
+                kn["rx_kbps"] = 0.0
+                kn["tx_kbps"] = 0.0
+                kn["quality_ratio"] = 0.0
+
+        # 3. Render all nodes from inventory
+        for kn in self._known_mesh_nodes.values():
+            name = kn["name"]
+            mac = kn["mac"]
+            node_type = kn["type"]
+            is_active = kn["is_active"]
+            model = kn["model"]
+            parent = kn["parent_name"]
+
+            # fritz_node_up: 1 if active, EXPLICIT 0 if offline/unplugged
+            self.node_up.labels(name, mac, node_type).set(1 if is_active else 0)
             self.node_info.labels(
-                name=node.name,
-                mac=node.mac,
+                name=name,
+                mac=mac,
                 type=node_type,
                 model=model,
-                ip=node.ip or "",
+                ip=kn["ip"],
                 parent_name=parent,
             ).set(1)
 
-            rx_kbps = node.extra.get("link_rx_kbps", 0)
-            tx_kbps = node.extra.get("link_tx_kbps", 0)
-            self.node_link_rx_kbps.labels(node.name, node.mac, node_type).set(rx_kbps)
-            self.node_link_tx_kbps.labels(node.name, node.mac, node_type).set(tx_kbps)
+            # Inventory & Power State metrics
+            self.mesh_node_present.labels(name, mac, node_type, model).set(1)
+            self.mesh_node_online.labels(name, mac, node_type).set(1 if is_active else 0)
+            self.mesh_node_power_state.labels(name, mac, node_type, "online").set(
+                1 if is_active else 0
+            )
+            self.mesh_node_power_state.labels(name, mac, node_type, "offline").set(
+                0 if is_active else 1
+            )
+            self.mesh_node_last_seen_seconds.labels(name, mac, node_type).set(
+                kn["last_seen"]
+            )
+
+            # Link Speeds & Multi-hop Metrics
+            self.node_link_rx_kbps.labels(name, mac, node_type).set(kn["rx_kbps"])
+            self.node_link_tx_kbps.labels(name, mac, node_type).set(kn["tx_kbps"])
+            self.node_hop_count.labels(name, mac, node_type).set(kn["hop"])
+            self.node_link_medium.labels(name, mac, node_type, kn["medium"]).set(1)
+            self.node_link_quality_ratio.labels(name, mac, node_type).set(
+                kn["quality_ratio"]
+            )
 
             if is_active:
-                direct_devices = devices_by_node_name.get(node.name, 0)
-                if node.kind == "powerline":
-                    self.powerline_connected_devices.labels(node.name, node.mac).set(
-                        direct_devices
-                    )
-                elif node.kind == "repeater":
-                    self.repeater_connected_devices.labels(node.name, node.mac).set(
-                        direct_devices
-                    )
+                direct_devices = devices_by_node_name.get(name, 0)
+                if node_type == "powerline":
+                    self.powerline_connected_devices.labels(name, mac).set(direct_devices)
+                elif node_type == "repeater":
+                    self.repeater_connected_devices.labels(name, mac).set(direct_devices)
 
-            if parent and parent in node_name_to_mac:
-                self.node_parent.labels(
-                    node.name, node.mac, parent, node_name_to_mac[parent]
-                ).set(1)
-            elif node.is_router:
-                self.node_parent.labels(node.name, node.mac, "", "").set(1)
+                if parent and parent in node_name_to_mac:
+                    self.node_parent.labels(
+                        name, mac, parent, node_name_to_mac[parent]
+                    ).set(1)
+                elif kn.get("is_router"):
+                    self.node_parent.labels(name, mac, "", "").set(1)
 
         # Render Devices
         self.device_up.clear()

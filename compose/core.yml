@@ -133,6 +133,33 @@ services:
       timeout: 5s
       retries: 3
 
+  tempo:
+    image: grafana/tempo:2.6.0
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    command: ["-config.file=/etc/tempo/tempo.yml"]
+    volumes:
+      - ./config/tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo_data:/var/tempo
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          memory: 128M
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3200/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+
   alloy:
     image: grafana/alloy:v1.3.1
     restart: unless-stopped
@@ -193,6 +220,7 @@ services:
       - GF_ANALYTICS_REPORTING_ENABLED=false
       - GF_ANALYTICS_CHECK_FOR_UPDATES=false
       - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-}
+      - GF_SERVER_SERVE_FROM_SUB_PATH=${GRAFANA_SERVE_FROM_SUB_PATH:-false}
       # hardening — safe universally
       - GF_SECURITY_CONTENT_SECURITY_POLICY=true
       - GF_SECURITY_COOKIE_SAMESITE=lax
@@ -200,6 +228,12 @@ services:
       - GF_SECURITY_X_CONTENT_TYPE_OPTIONS=true
       - GF_SECURITY_X_XSS_PROTECTION=true
       - GF_SNAPSHOTS_EXTERNAL_ENABLED=false
+      # Cloudflare Zero Trust Access Single Sign-On (Auth Proxy)
+      - GF_AUTH_PROXY_ENABLED=${GRAFANA_AUTH_PROXY_ENABLED:-true}
+      - GF_AUTH_PROXY_HEADER_NAME=${GRAFANA_AUTH_PROXY_HEADER_NAME:-Cf-Access-Authenticated-User-Email}
+      - GF_AUTH_PROXY_HEADER_PROPERTY=${GRAFANA_AUTH_PROXY_HEADER_PROPERTY:-email}
+      - GF_AUTH_PROXY_AUTO_SIGN_UP=${GRAFANA_AUTH_PROXY_AUTO_SIGN_UP:-true}
+      - GF_AUTH_PROXY_ENABLE_LOGIN_TOKEN=false
       # set true once reached only over the Caddy TLS proxy (a Secure cookie is
       # dropped over the plain-HTTP 127.0.0.1:3000 bind, breaking local login)
       - GF_SECURITY_COOKIE_SECURE=${GRAFANA_COOKIE_SECURE:-false}
@@ -222,6 +256,8 @@ services:
       prometheus:
         condition: service_healthy
       loki:
+        condition: service_healthy
+      tempo:
         condition: service_healthy
 
   # Opt-in LAN reference probe. Enable with:  --profile iperf  and set
@@ -269,6 +305,7 @@ networks:
 volumes:
   prometheus_data:
   loki_data:
+  tempo_data:
   grafana_data:
   home_iot_data:   # Blink cloud token cache (home_iot.blink)
   netwatch_data:   # persistent first-seen-per-MAC map (home_iot.netwatch)
@@ -293,3 +330,5 @@ secrets:
     file: ${DEVICE_MANAGER_SECRET_KEY_FILE:-./secrets/device_manager_secret_key.txt}
   restic_password:
     file: ${RESTIC_PASSWORD_FILE:-./secrets/restic_password.txt}
+  cloudflare_tunnel_token:
+    file: ${CLOUDFLARE_TUNNEL_TOKEN_FILE:-./secrets/cloudflare_tunnel_token.txt}

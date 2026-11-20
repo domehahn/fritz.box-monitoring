@@ -1,0 +1,46 @@
+groups:
+  - name: fritz_mesh_diagnostics
+    rules:
+      # 1. Repeater vom Stromnetz getrennt / Offline
+      - alert: FritzRepeaterPowerLost
+        expr: fritz_mesh_node_online{type="repeater"} == 0 or fritz_mesh_node_power_state{state="offline"} == 1
+        for: 2m
+        labels:
+          severity: critical
+          category: mesh_power
+        annotations:
+          summary: "FRITZ!Repeater {{ $labels.name }} ist vom Stromnetz getrennt oder offline"
+          description: "Der Repeater {{ $labels.name }} (MAC: {{ $labels.mac }}) liefert keine Daten mehr und wird als offline/stromlos klassifiziert."
+
+      # 2. Backhaul Verbindungsstrecke degradiert (Bottleneck / Schwache Verbindung)
+      - alert: FritzMeshBackhaulDegraded
+        expr: (fritz_node_link_rx_kbps{type="repeater"} > 0 and fritz_node_link_rx_kbps{type="repeater"} < 100000) or (fritz_node_link_quality_ratio{type="repeater"} > 0 and fritz_node_link_quality_ratio{type="repeater"} < 0.25)
+        for: 5m
+        labels:
+          severity: warning
+          category: mesh_link
+        annotations:
+          summary: "Mesh-Uplink zu {{ $labels.name }} ist stark degradiert"
+          description: "Die Übertragungsrate zwischen Router/Parent und Repeater {{ $labels.name }} beträgt nur {{ $value | humanize }}bit/s (kritischer Engpass für verbundene Endgeräte)."
+
+      # 3. Fallback auf 2.4 GHz Band (Band-Downgrade)
+      - alert: FritzMeshBackhaulBandFallback
+        expr: fritz_node_link_medium{medium="wlan_2ghz", type="repeater"} == 1 and fritz_node_link_rx_kbps > 0 and fritz_node_link_rx_kbps < 200000
+        for: 10m
+        labels:
+          severity: warning
+          category: mesh_band
+        annotations:
+          summary: "Repeater {{ $labels.name }} ist auf 2.4-GHz-Backhaul zurückgefallen"
+          description: "Der Repeater {{ $labels.name }} nutzt nur noch das 2.4 GHz WLAN-Band für die Mesh-Anbindung (hohe Latenz, Durchsatz halbiert)."
+
+      # 4. Endgerät mit schwachem Signalpegel
+      - alert: FritzClientSignalCritical
+        expr: fritz_device_wlan_signal_strength > 0 and fritz_device_wlan_signal_strength < 25
+        for: 5m
+        labels:
+          severity: info
+          category: client_wifi
+        annotations:
+          summary: "Endgerät {{ $labels.name }} hat extrem schwaches WLAN-Signal ({{ $value }}%)"
+          description: "Client {{ $labels.name }} an Node {{ $labels.node }} leidet unter hoher Dämpfung (<25% Signalstärke)."

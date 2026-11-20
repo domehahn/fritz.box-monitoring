@@ -1,13 +1,15 @@
 # FRITZ!Box Production Monitoring Stack
 
-Production-grade observability stack for AVM FRITZ!Box routers, mesh repeaters, and powerline adapters using Prometheus, Grafana, Loki, Grafana Alloy, and `fritz-avm-client`.
+Production-grade observability stack for AVM FRITZ!Box routers, mesh repeaters, and powerline adapters using Prometheus, Grafana, Loki, Tempo, Grafana Alloy, Cloudflare Zero Trust, and `fritz-avm-client`.
 
 ---
 
 ## Features
 
+- **Full LGTM Observability Stack**: Prometheus (metrics), Loki (logs), Tempo (traces), Grafana (dashboards) and Grafana Alloy with correlation between logs and traces.
+- **Deep Mesh Diagnostics & Offline/Power-Loss Detection**: Persistent inventory of all known repeaters, detection of offline/unplugged repeaters, multi-hop hierarchy, link speed matrix (RX/TX), and band-fallback root-cause analysis.
+- **Cloudflare Zero Trust & Tunnel**: Secure remote access with zero open router ports, Cloudflare Access authentication, and Grafana Auth-Proxy Single Sign-On.
 - **Decoupled Architecture**: Asynchronous background collector with atomic snapshot swaps. Fast, deterministic `/metrics` scrapes without TR-064 timeouts.
-- **Mesh Topology Monitoring**: Real-time link speeds (`rx_kbps`/`tx_kbps`), node hierarchy, signal strength, and connected device traffic.
 - **Syslog Logging Pipeline**: RFC3164 Syslog UDP ingestion via Grafana Alloy to Loki (persisted under `/loki` TSDB v13).
 - **Hardened Device Manager**: Optional web UI (Profile `admin`) secured with HTTP Basic/Session auth, CSRF protection, and MAC address validation.
 - **Supply Chain Security**: Multi-stage non-root containers, dropped Linux capabilities (`cap_drop: ALL`), Docker Secrets, and zero floating tags.
@@ -45,6 +47,7 @@ Production-grade observability stack for AVM FRITZ!Box routers, mesh repeaters, 
 - [Current State & Gap Analysis](docs/network-observability-current-state.md)
 - [Metric Catalogue](docs/fritz-metrics.md)
 - [Dashboards & Alerts](docs/dashboards.md)
+- [Cloudflare Zero Trust & Remote Access Guide](docs/CLOUDFLARE_ZERO_TRUST.md)
 - [Event Pipeline](docs/event-pipeline.md)
 - [FRITZ!Box Account Permissions](docs/fritz-permissions.md) — grant these to unlock mesh / Wi-Fi / event-log data
 - [iperf3 LAN reference (opt-in)](docs/iperf-reference.md)

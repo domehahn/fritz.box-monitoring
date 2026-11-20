@@ -259,6 +259,36 @@ services:
       timeout: 5s
       retries: 3
 
+  # Cloudflare Tunnel — outbound-only ingress for Grafana. Access (OTP/email
+  # policy) is configured in Cloudflare Zero Trust for the public hostname;
+  # this container never publishes a host port.
+  cloudflared:
+    profiles: [cloudflare]
+    image: cloudflare/cloudflared:2025.9.1
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    command: ["tunnel", "--metrics", "0.0.0.0:2000", "--no-autoupdate", "run", "--token-file", "/run/secrets/cloudflare_tunnel_token"]
+    networks:
+      - ingress
+    secrets:
+      - cloudflare_tunnel_token
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:2000/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      grafana:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+
   # --- New-device watch (always on) -----------------------------
   # Polls fritz_device_up, keeps a persistent first-seen map per MAC, and
   # flags devices first seen < NETWATCH_NEW_DAYS ago. Allowlist:

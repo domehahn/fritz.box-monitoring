@@ -1,0 +1,468 @@
+{
+  "uid": "fritz_mesh_diag",
+  "title": "FRITZ!Box Deep Mesh & Link Diagnostics",
+  "tags": [
+    "fritzbox",
+    "mesh",
+    "diagnostics",
+    "tempo",
+    "loki",
+    "noc"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "time": {
+    "from": "now-3h",
+    "to": "now"
+  },
+  "editable": true,
+  "graphTooltip": 1,
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "definition": "label_values(fritz_mesh_node_present, name)",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "node",
+        "query": {
+          "qryType": 1,
+          "query": "label_values(fritz_mesh_node_present, name)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Repeater-Inventar & Stromnetz-Status (Welche existieren & wer ist online?)",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Registrierte Repeater im Inventar",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 1, "w": 8, "h": 3 },
+      "targets": [
+        {
+          "expr": "count(fritz_mesh_node_present{type=\"repeater\"}) or vector(0)",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": { "mode": "fixed", "fixedColor": "blue" }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Online am Stromnetz",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 8, "y": 1, "w": 8, "h": 3 },
+      "targets": [
+        {
+          "expr": "count(fritz_mesh_node_online{type=\"repeater\"} == 1) or vector(0)",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": { "mode": "fixed", "fixedColor": "green" }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Vom Strom getrennt / Offline",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 16, "y": 1, "w": 8, "h": 3 },
+      "targets": [
+        {
+          "expr": "count(fritz_mesh_node_online{type=\"repeater\"} == 0) or vector(0)",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"] }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Mesh-Hardware Inventar & Verbindungs-Matrix",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 4, "w": 24, "h": 8 },
+      "targets": [
+        {
+          "expr": "fritz_mesh_node_present{name=~\"$node\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        },
+        {
+          "expr": "fritz_mesh_node_online{name=~\"$node\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "B"
+        },
+        {
+          "expr": "fritz_node_hop_count{name=~\"$node\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "C"
+        },
+        {
+          "expr": "fritz_node_link_rx_kbps{name=~\"$node\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "D"
+        },
+        {
+          "expr": "fritz_node_link_tx_kbps{name=~\"$node\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "E"
+        },
+        {
+          "expr": "fritz_mesh_node_last_seen_seconds{name=~\"$node\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "F"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true,
+              "instance": true,
+              "Value #A": true
+            },
+            "renameByName": {
+              "name": "Gerätename",
+              "mac": "MAC",
+              "model": "Modell",
+              "type": "Typ",
+              "Value #B": "Status",
+              "Value #C": "Hop-Tiefe",
+              "Value #D": "Uplink RX (kbit/s)",
+              "Value #E": "Uplink TX (kbit/s)",
+              "Value #F": "Zuletzt online"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Status" },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": { "text": "🔴 VOM STROM GETRENNT / OFFLINE", "color": "red" },
+                      "1": { "text": "🟢 ONLINE AM STROMNETZ", "color": "green" }
+                    }
+                  }
+                ]
+              },
+              { "id": "custom.cellOptions", "value": { "type": "color-background" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Zuletzt online" },
+            "properties": [
+              { "id": "unit", "value": "dateTimeAsIso" }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Uplink RX (kbit/s)" },
+            "properties": [
+              { "id": "unit", "value": "kbits" }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Uplink TX (kbit/s)" },
+            "properties": [
+              { "id": "unit", "value": "kbits" }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 6,
+      "type": "row",
+      "title": "Automatisierte Ursachenanalyse (Warum schwächelt die Verbindung?)",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 12, "w": 24, "h": 1 }
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Aktive Engpässe & Problemursachen (Router ⟷ Repeater ⟷ Clients)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 13, "w": 24, "h": 7 },
+      "targets": [
+        {
+          "expr": "ALERTS{alertname=~\"Fritz.*\", alertstate=\"firing\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true,
+              "instance": true,
+              "Value": true,
+              "alertstate": true
+            },
+            "renameByName": {
+              "alertname": "Erkannte Ursache",
+              "severity": "Dringlichkeit",
+              "summary": "Zusammenfassung",
+              "description": "Detaillierte Fehleranalyse"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Dringlichkeit" },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "critical": { "text": "KRITISCH", "color": "red" },
+                      "warning": { "text": "WARNUNG", "color": "orange" },
+                      "info": { "text": "INFO", "color": "blue" }
+                    }
+                  }
+                ]
+              },
+              { "id": "custom.cellOptions", "value": { "type": "color-background" } }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 8,
+      "type": "row",
+      "title": "Strukturelle Topologie (Router ⟷ Repeater ⟷ Clients)",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 20, "w": 24, "h": 1 }
+    },
+    {
+      "id": 9,
+      "type": "nodeGraph",
+      "title": "Live Mesh Topologie-Graph (Multi-Hop Hierarchie)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 21, "w": 24, "h": 14 },
+      "targets": [
+        {
+          "expr": "label_replace(label_replace(label_replace(label_replace(fritz_node_info, \"id\",\"$1\",\"mac\",\"(.+)\"), \"title\",\"$1\",\"name\",\"(.+)\"), \"mainStat\",\"$1\",\"type\",\"(.+)\"), \"secondaryStat\",\"$1\",\"ip\",\"(.*)\")",
+          "format": "table",
+          "instant": true,
+          "refId": "nodes"
+        },
+        {
+          "expr": "label_replace(label_replace(label_join(fritz_node_parent{parent_mac!=\"\"}, \"id\", \"@@\", \"parent_mac\", \"mac\"), \"source\",\"$1\",\"parent_mac\",\"(.+)\"), \"target\",\"$1\",\"mac\",\"(.+)\")",
+          "format": "table",
+          "instant": true,
+          "refId": "edges"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true,
+              "instance": true,
+              "instance_type": true,
+              "Value": true,
+              "name": true,
+              "mac": true,
+              "type": true,
+              "model": true,
+              "ip": true,
+              "parent_name": true,
+              "parent_mac": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "Korrelierte Logs (Loki) & Distributed Traces (Tempo)",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 35, "w": 24, "h": 1 }
+    },
+    {
+      "id": 11,
+      "type": "logs",
+      "title": "FRITZ!Box Ereignis-Logs & Syslog (Radar/DFS, Roaming, Deauths)",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "x": 0, "y": 36, "w": 14, "h": 12 },
+      "targets": [
+        {
+          "expr": "{job=~\"fritzbox-syslog|containers\"} | json",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showLabels": true,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending"
+      }
+    },
+    {
+      "id": 12,
+      "type": "table",
+      "title": "Endgeräte-Verbindungen & Signalpegel (Tier 3: Client Link)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 14, "y": 36, "w": 10, "h": 12 },
+      "targets": [
+        {
+          "expr": "fritz_device_wlan_signal_strength > 0",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        },
+        {
+          "expr": "fritz_device_wlan_speed_mbps > 0",
+          "format": "table",
+          "instant": true,
+          "refId": "B"
+        }
+      ],
+      "transformations": [
+        { "id": "merge", "options": {} },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "job": true,
+              "instance": true
+            },
+            "renameByName": {
+              "name": "Endgerät",
+              "node": "Verbundener Access Point",
+              "Value #A": "Signal (%)",
+              "Value #B": "Geschwindigkeit (Mbit/s)"
+            }
+          }
+        }
+      ],
+      "fieldConfig": {
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Signal (%)" },
+            "properties": [
+              { "id": "unit", "value": "percent" },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "red", "value": null },
+                    { "color": "orange", "value": 35 },
+                    { "color": "green", "value": 65 }
+                  ]
+                }
+              },
+              { "id": "custom.cellOptions", "value": { "type": "color-background" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Geschwindigkeit (Mbit/s)" },
+            "properties": [
+              { "id": "unit", "value": "Mbits" }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

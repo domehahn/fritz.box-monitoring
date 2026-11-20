@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from typing import Optional, Tuple, Callable
 from loguru import logger
 
+from .tracer import trace_span, current_trace_id
+
 from fritz_avm_client import (
     FritzClient,
     Settings as FritzSettings,
@@ -135,106 +137,115 @@ class CollectorService:
             )
 
     def collect_once(self) -> MonitoringSnapshot:
-        """Perform a single collection pass."""
+        """Perform a single collection pass with OpenTelemetry distributed tracing."""
         now = datetime.now(timezone.utc)
         start_time = time.monotonic()
 
         with self._lock:
             self._state.last_attempt = now
 
-        try:
-            client = self.get_client()
-            self._probe_capabilities_once(client)
+        with trace_span("fritz.collect_cycle") as cycle_span:
+            try:
+                client = self.get_client()
 
-            # WAN & DSL
-            wan = client.get_wan_stats_typed()
-            dsl = client.router_client.get_dsl_stats()
+                with trace_span("fritz.probe_capabilities"):
+                    self._probe_capabilities_once(client)
 
-            # WLAN Multi-band Aggregation
-            wlan_list = client.wlan_client.get_wlan_stats()
-            if wlan_list:
-                clients_list = [
-                    w.connected_clients
-                    for w in wlan_list
-                    if w.connected_clients is not None
-                ]
-                sent_list = [
-                    w.total_packets_sent
-                    for w in wlan_list
-                    if w.total_packets_sent is not None
-                ]
-                recv_list = [
-                    w.total_packets_received
-                    for w in wlan_list
-                    if w.total_packets_received is not None
-                ]
-                ssids = ", ".join(filter(None, [w.ssid for w in wlan_list]))
+                # WAN & DSL
+                with trace_span("fritz.get_wan_dsl"):
+                    wan = client.get_wan_stats_typed()
+                    dsl = client.router_client.get_dsl_stats()
 
-                wlan = WlanStats(
-                    total_packets_sent=sum(sent_list) if sent_list else None,
-                    total_packets_received=sum(recv_list) if recv_list else None,
-                    connected_clients=sum(clients_list) if clients_list else None,
-                    ssid=ssids or None,
+                # WLAN Multi-band Aggregation
+                with trace_span("fritz.get_wlan"):
+                    wlan_list = client.wlan_client.get_wlan_stats()
+                    if wlan_list:
+                        clients_list = [
+                            w.connected_clients
+                            for w in wlan_list
+                            if w.connected_clients is not None
+                        ]
+                        sent_list = [
+                            w.total_packets_sent
+                            for w in wlan_list
+                            if w.total_packets_sent is not None
+                        ]
+                        recv_list = [
+                            w.total_packets_received
+                            for w in wlan_list
+                            if w.total_packets_received is not None
+                        ]
+                        ssids = ", ".join(filter(None, [w.ssid for w in wlan_list]))
+
+                        wlan = WlanStats(
+                            total_packets_sent=sum(sent_list) if sent_list else None,
+                            total_packets_received=sum(recv_list) if recv_list else None,
+                            connected_clients=sum(clients_list) if clients_list else None,
+                            ssid=ssids or None,
+                        )
+                    else:
+                        wlan = WlanStats()
+
+                # Mesh Topology & Devices
+                with trace_span("fritz.discover_mesh"):
+                    mesh_topology = client.discover_mesh()
+
+                duration = time.monotonic() - start_time
+                snapshot = MonitoringSnapshot(
+                    timestamp=now,
+                    wan=wan,
+                    dsl=dsl,
+                    wlan=wlan,
+                    mesh_nodes=mesh_topology.nodes,
+                    devices=mesh_topology.devices,
+                    collection_duration_seconds=duration,
                 )
-            else:
-                wlan = WlanStats()
 
-            # Mesh Topology & Devices
-            mesh_topology = client.discover_mesh()
+                with self._lock:
+                    self._snapshot = snapshot
+                    self._state.last_success = now
+                    self._state.consecutive_failures = 0
+                    self._state.last_error_type = None
 
-            duration = time.monotonic() - start_time
-            snapshot = MonitoringSnapshot(
-                timestamp=now,
-                wan=wan,
-                dsl=dsl,
-                wlan=wlan,
-                mesh_nodes=mesh_topology.nodes,
-                devices=mesh_topology.devices,
-                collection_duration_seconds=duration,
-            )
+                tid = current_trace_id() or "none"
+                logger.info(
+                    f"Successfully collected Fritz!Box snapshot in {duration:.2f}s "
+                    f"({len(snapshot.mesh_nodes)} nodes, {len(snapshot.devices)} devices) trace_id={tid}"
+                )
 
-            with self._lock:
-                self._snapshot = snapshot
-                self._state.last_success = now
-                self._state.consecutive_failures = 0
-                self._state.last_error_type = None
+                # Derive structured events from the state transition. Never let an
+                # error here disrupt collection.
+                if self._event_deriver is not None:
+                    try:
+                        with trace_span("fritz.derive_events"):
+                            self._event_deriver.process(snapshot)
+                    except Exception as exc:  # pragma: no cover - defensive
+                        logger.warning(f"Event derivation failed: {exc}")
 
-            logger.info(
-                f"Successfully collected Fritz!Box snapshot in {duration:.2f}s "
-                f"({len(snapshot.mesh_nodes)} nodes, {len(snapshot.devices)} devices)"
-            )
+                if self._device_log is not None:
+                    try:
+                        with trace_span("fritz.device_log_poll"):
+                            self._device_log.poll(self.get_client())
+                    except Exception as exc:  # pragma: no cover - defensive
+                        logger.warning(f"Device-log tailing failed: {exc}")
 
-            # Derive structured events from the state transition. Never let an
-            # error here disrupt collection.
-            if self._event_deriver is not None:
-                try:
-                    self._event_deriver.process(snapshot)
-                except Exception as exc:  # pragma: no cover - defensive
-                    logger.warning(f"Event derivation failed: {exc}")
+                return snapshot
 
-            if self._device_log is not None:
-                try:
-                    self._device_log.poll(self.get_client())
-                except Exception as exc:  # pragma: no cover - defensive
-                    logger.warning(f"Device-log tailing failed: {exc}")
-
-            return snapshot
-
-        except FritzTimeoutError as exc:
-            self._record_error("timeout", exc)
-            raise
-        except FritzAuthenticationError as exc:
-            self._record_error("authentication_error", exc)
-            raise
-        except FritzConnectionError as exc:
-            self._record_error("connection_error", exc)
-            raise
-        except FritzError as exc:
-            self._record_error("fritz_error", exc)
-            raise
-        except Exception as exc:
-            self._record_error("unknown_error", exc)
-            raise
+            except FritzTimeoutError as exc:
+                self._record_error("timeout", exc)
+                raise
+            except FritzAuthenticationError as exc:
+                self._record_error("authentication_error", exc)
+                raise
+            except FritzConnectionError as exc:
+                self._record_error("connection_error", exc)
+                raise
+            except FritzError as exc:
+                self._record_error("fritz_error", exc)
+                raise
+            except Exception as exc:
+                self._record_error("unknown_error", exc)
+                raise
 
     def _record_error(self, error_type: str, exc: Exception) -> None:
         """Record an error in collector state."""

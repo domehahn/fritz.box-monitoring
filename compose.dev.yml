@@ -59,6 +59,17 @@ services:
       - ./config/loki/loki-config.yml:/etc/loki/local-config.yaml
       - loki_data:/loki
 
+  tempo:
+    image: grafana/tempo:2.6.0
+    ports:
+      - "3200:3200"
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - ./config/tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo_data:/var/tempo
+    command: ["-config.file=/etc/tempo/tempo.yml"]
+
   alloy:
     image: grafana/alloy:v1.3.1
     ports:
@@ -88,5 +99,6 @@ services:
 volumes:
   prometheus_data:
   loki_data:
+  tempo_data:
   grafana_data:
 

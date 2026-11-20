@@ -7,9 +7,12 @@ The `fritz.box-monitoring` stack provides a production-grade, secure, and observ
 The system is decoupled into independent pathways:
 
 1. **Metrics Pipeline**: Asynchronous TR-064 metrics polling via `fritz-avm-client` -> `CollectorService` -> `FritzExporter` -> `Prometheus` -> `Grafana`.
-2. **Logging Pipeline**: RFC3164 Syslog UDP + Docker container logs -> `Grafana Alloy` (scoped to this compose project via `discovery.relabel`) -> `Loki` -> `Grafana`.
-3. **Active Probing** (P1): `Blackbox Exporter` runs ICMP + DNS probes against LAN infrastructure, WAN anchors and resolvers; targets in `config/blackbox/targets/*.yml` (`file_sd`, hot-reloaded).
-4. **Derived Events** (P2): `EventDeriver` diffs consecutive snapshots and emits structured JSON events on the exporter's stdout; Alloy ships them to Loki (the FRITZ device log itself is permission-gated).
+2. **Logging Pipeline**: RFC3164 Syslog UDP + Docker container logs -> `Grafana Alloy` -> `Loki` -> `Grafana`.
+3. **Distributed Tracing (Tempo)**: OpenTelemetry OTLP tracing for TR-064 API calls, capability probes, and scrape cycles -> `Grafana Tempo` -> correlated with Loki logs via `trace_id`.
+4. **Mesh Inventory & Link Diagnostics**: Persistent inventory of all known repeaters, detection of offline/unpowered devices (`fritz_mesh_node_online == 0`), multi-hop hierarchy, link speed matrix (RX/TX), and band-fallback root-cause analysis.
+5. **Active Probing** (P1): `Blackbox Exporter` runs ICMP + DNS probes against LAN infrastructure, WAN anchors and resolvers; targets in `config/blackbox/targets/*.yml` (`file_sd`, hot-reloaded).
+6. **Derived Events** (P2): `EventDeriver` diffs consecutive snapshots and emits structured JSON events on the exporter's stdout; Alloy ships them to Loki.
+7. **Cloudflare Zero Trust Ingress**: Outbound-only tunnel via `cloudflared` (profile: `cloudflare`) with Cloudflare Access protection and Grafana Auth-Proxy Single Sign-On.
 5. **Capability Probing**: `capabilities.probe_capabilities()` actively tests the permission-gated TR-064 actions once and exposes `fritz_capability_available{feature}` so degraded data is visible and diagnosable (see `docs/fritz-permissions.md`).
 6. **Optional** (`--profile iperf`): `iperf-probe` runs a short, interval-floored `iperf3` client test against a wired LAN host for LAN-vs-WAN reference.
 
