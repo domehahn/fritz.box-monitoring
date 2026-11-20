@@ -205,7 +205,7 @@ services:
     cap_drop:
       - ALL
     ports:
-      - "${GRAFANA_BIND_ADDRESS:-127.0.0.1}:3000:3000"
+      - "${GRAFANA_BIND_ADDRESS:-0.0.0.0}:${GRAFANA_PORT:-3030}:3000"
     networks:
       - backend
       - ingress

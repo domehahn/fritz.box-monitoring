@@ -52,7 +52,7 @@ services:
   # Streams a live pcap of the LAN bridge and counts bytes per local IP.
   # LOADS THE FRITZ!Box CPU — keep sessions short / set LANTAP_MAX_MINUTES.
   docker-socket-proxy:
-    image: ghcr.io/tecnativa/docker-socket-proxy:0.3
+    image: tecnativa/docker-socket-proxy:latest
     restart: unless-stopped
     security_opt:
       - no-new-privileges:true

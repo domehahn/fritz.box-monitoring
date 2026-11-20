@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile.exporter
     ports:
-      - "8000:8000"
+      - "8008:8000"
     env_file:
       - .env
     volumes:
@@ -16,7 +16,7 @@ services:
   prometheus:
     image: prom/prometheus:v2.54.1
     ports:
-      - "9090:9090"
+      - "9099:9090"
     volumes:
       - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
       - ./config/prometheus/rules:/etc/prometheus/rules
@@ -45,7 +45,7 @@ services:
     cap_add:
       - NET_RAW
     ports:
-      - "9115:9115"
+      - "9118:9115"
     volumes:
       - ./config/blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml
     command:
@@ -54,7 +54,7 @@ services:
   loki:
     image: grafana/loki:3.1.1
     ports:
-      - "3100:3100"
+      - "3108:3100"
     volumes:
       - ./config/loki/loki-config.yml:/etc/loki/local-config.yaml
       - loki_data:/loki
@@ -62,9 +62,7 @@ services:
   tempo:
     image: grafana/tempo:2.6.0
     ports:
-      - "3200:3200"
-      - "4317:4317"
-      - "4318:4318"
+      - "3208:3200"
     volumes:
       - ./config/tempo/tempo.yml:/etc/tempo/tempo.yml:ro
       - tempo_data:/var/tempo
@@ -73,8 +71,8 @@ services:
   alloy:
     image: grafana/alloy:v1.3.1
     ports:
-      - "1514:1514/udp"
-      - "12345:12345"
+      - "1518:1514/udp"
+      - "12348:12345"
     volumes:
       - ./config/alloy/config.alloy:/etc/alloy/config.alloy
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -87,7 +85,7 @@ services:
   grafana:
     image: grafana/grafana:11.5.0
     ports:
-      - "3000:3000"
+      - "${GRAFANA_BIND_ADDRESS:-0.0.0.0}:${GRAFANA_PORT:-3030}:3000"
     volumes:
       - ./config/grafana/provisioning:/etc/grafana/provisioning
       - grafana_data:/var/lib/grafana
