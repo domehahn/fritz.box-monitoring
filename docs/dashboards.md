@@ -8,6 +8,7 @@ All dashboards are provisioned from
 | --- | --- | --- |
 | `fritz_noc` | **Home Network NOC** | First screen when "the internet is slow". Is something wrong, what, where, since when |
 | `fritz_mesh_diag` | **Deep Mesh & Link Diagnostics** | 100% root-cause transparency for Router ⟷ Repeater ⟷ Repeater ⟷ Client, repeater power inventory, link speeds, band fallback & Loki/Tempo correlation |
+| `isp_sla_report` | **ISP SLA & Quality Audit Report** | Contract fulfillment ratio (30d), Bufferbloat delta, latency under load, and ISP outage dispute protocol |
 | `fritz_client` | **Client Diagnostics** | Deep-dive on one device (`$device`) |
 | `fritz_probes` | **Network Path Probes** | Active ICMP / DNS latency & loss per hop (LAN → WAN → DNS) |
 | `fritz_events` | **Network Events & Forensics** | Derived connect/disconnect/WAN/reboot events (Loki) — see [event-pipeline.md](event-pipeline.md) |

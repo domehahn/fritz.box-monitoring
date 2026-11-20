@@ -172,6 +172,36 @@ class FritzPrometheusExporter:
             "Total WiFi packets received across all interfaces",
             registry=self.registry,
         )
+        self.wlan_channel = Gauge(
+            "fritz_wlan_channel",
+            "Active Wi-Fi channel (value=1)",
+            ["band", "channel"],
+            registry=self.registry,
+        )
+        self.wlan_channel_utilization_percent = Gauge(
+            "fritz_wlan_channel_utilization_percent",
+            "Wi-Fi channel total utilization percentage",
+            ["band", "channel"],
+            registry=self.registry,
+        )
+        self.wlan_non_wifi_interference_percent = Gauge(
+            "fritz_wlan_non_wifi_interference_percent",
+            "Non-Wi-Fi interference on channel percentage",
+            ["band", "channel"],
+            registry=self.registry,
+        )
+        self.wlan_channel_width_mhz = Gauge(
+            "fritz_wlan_channel_width_mhz",
+            "Wi-Fi channel width in MHz",
+            ["band", "channel"],
+            registry=self.registry,
+        )
+        self.wlan_dfs_active = Gauge(
+            "fritz_wlan_dfs_active",
+            "1 if DFS / weather radar detection wait is active, 0 otherwise",
+            ["band"],
+            registry=self.registry,
+        )
 
         # Node Metrics
         self.node_up = Gauge(
@@ -398,6 +428,26 @@ class FritzPrometheusExporter:
                 self.wlan_packets_sent_total.set(wlan.total_packets_sent)
             if wlan.total_packets_received is not None:
                 self.wlan_packets_received_total.set(wlan.total_packets_received)
+
+        # Wi-Fi Spectrum & Channel Info
+        self.wlan_channel.clear()
+        self.wlan_channel_utilization_percent.clear()
+        self.wlan_non_wifi_interference_percent.clear()
+        self.wlan_channel_width_mhz.clear()
+        self.wlan_dfs_active.clear()
+
+        for ch in getattr(snapshot, "wlan_channels", ()):
+            self.wlan_channel.labels(band=ch.band, channel=str(ch.channel)).set(1)
+            self.wlan_channel_utilization_percent.labels(
+                band=ch.band, channel=str(ch.channel)
+            ).set(ch.utilization_percent)
+            self.wlan_non_wifi_interference_percent.labels(
+                band=ch.band, channel=str(ch.channel)
+            ).set(ch.interference_percent)
+            self.wlan_channel_width_mhz.labels(
+                band=ch.band, channel=str(ch.channel)
+            ).set(ch.channel_width_mhz)
+            self.wlan_dfs_active.labels(band=ch.band).set(1 if ch.dfs_wait_active else 0)
 
         # Device Counts
         devices = snapshot.devices

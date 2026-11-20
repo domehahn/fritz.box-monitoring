@@ -1,0 +1,32 @@
+groups:
+  - name: fritz_wlan_spectrum
+    rules:
+      - alert: FritzWlanChannelCongested
+        expr: fritz_wlan_channel_utilization_percent > 80
+        for: 10m
+        labels:
+          severity: warning
+          category: wifi_spectrum
+        annotations:
+          summary: "WLAN-Kanal {{ $labels.channel }} ({{ $labels.band }}) ist überlastet ({{ $value }}%)"
+          description: "Die Auslastung des WLAN-Kanals übersteigt 80%. Dies führt zu hohen Latenzen und Paketverlusten im Funknetz."
+
+      - alert: FritzWlanHighInterference
+        expr: fritz_wlan_non_wifi_interference_percent > 40
+        for: 5m
+        labels:
+          severity: warning
+          category: wifi_spectrum
+        annotations:
+          summary: "Starke Fremd-Interferenzen auf WLAN-Band {{ $labels.band }}"
+          description: "Nicht-WLAN-Störquellen (z. B. Mikrowellen, Bluetooth, Babyphones) verursachen {{ $value }}% Störstrahlung auf Kanal {{ $labels.channel }}."
+
+      - alert: FritzWlanDfsWaitActive
+        expr: fritz_wlan_dfs_active == 1
+        for: 1m
+        labels:
+          severity: info
+          category: wifi_dfs
+        annotations:
+          summary: "DFS / Radar-Erkennung auf 5-GHz-WLAN aktiv"
+          description: "Die FRITZ!Box prüft den 5-GHz-Kanal auf bevorrechtigte Nutzer (Flugfunk/Wetterradar). 5 GHz ist temporär stummgeschaltet."

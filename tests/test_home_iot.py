@@ -613,6 +613,42 @@ async def test_alertbridge_watchdog_pings_deadman_url(monkeypatch):
     assert hits == ["https://hc.example/ping/abc"]
 
 
+def test_alertbridge_multichannel_publish(monkeypatch):
+    from home_iot.alertbridge import app
+
+    calls = []
+
+    def mock_post(url, **kwargs):
+        calls.append((url, kwargs))
+        mock_resp = app.requests.Response()
+        mock_resp.status_code = 200
+        return mock_resp
+
+    monkeypatch.setattr(app.requests, "post", mock_post)
+
+    cfg = {
+        "url": "https://ntfy.sh",
+        "topic": "test_topic",
+        "token": "test_token",
+        "telegram_token": "tg_token_123",
+        "telegram_chat_id": "123456",
+        "pushover_user": "po_user_123",
+        "pushover_token": "po_token_123",
+        "discord_webhook": "https://discord.com/api/webhooks/xyz",
+    }
+
+    app._publish(cfg, "Test Title", "Test Body", "4", "warning")
+
+    # All 4 channels should have been called!
+    assert len(calls) == 4
+    called_urls = [c[0] for c in calls]
+    assert "https://ntfy.sh/test_topic" in called_urls
+    assert "https://api.telegram.org/bottg_token_123/sendMessage" in called_urls
+    assert "https://api.pushover.net/1/messages.json" in called_urls
+    assert "https://discord.com/api/webhooks/xyz" in called_urls
+
+
+
 # --------------------------------------------------------------------------- #
 # energy
 # --------------------------------------------------------------------------- #
@@ -1222,3 +1258,22 @@ def test_automation_lights_off_only_when_on():
                 if x.rule == "away_lights_off"]
     assert [x for x in evaluate(Snapshot(lights_on=3.0, **base), {}, 10_000.0)
             if x.rule == "away_lights_off"]
+
+
+def test_automation_remediation_rules():
+    from home_iot.automation.rules import Snapshot, evaluate
+
+    # 1. Repeater power-cycle remediation
+    s_rep = Snapshot(mesh_node_offline_count=2.0)
+    decisions = evaluate(s_rep, {}, now=10_000.0)
+    rep_dec = [d for d in decisions if d.rule == "repeater_reboot_remediation"]
+    assert len(rep_dec) == 1
+    assert rep_dec[0].action.kind == "smart_plug_power_cycle"
+
+    # 2. Guest Wi-Fi idle remediation
+    s_guest = Snapshot(guest_wifi_clients=0.0, occupied_window_max=0.0)
+    decisions_guest = evaluate(s_guest, {}, now=10_000.0)
+    guest_dec = [d for d in decisions_guest if d.rule == "guest_wifi_idle_remediation"]
+    assert len(guest_dec) == 1
+    assert guest_dec[0].action.kind == "fritz_guest_wifi_disable"
+

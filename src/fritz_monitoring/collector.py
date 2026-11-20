@@ -24,6 +24,18 @@ from fritz_avm_client import (
 
 
 @dataclass(frozen=True)
+class WlanChannelInfo:
+    """Wi-Fi spectrum, channel load, and interference info per band."""
+
+    band: str
+    channel: int
+    utilization_percent: float = 0.0
+    interference_percent: float = 0.0
+    dfs_wait_active: bool = False
+    channel_width_mhz: int = 20
+
+
+@dataclass(frozen=True)
 class MonitoringSnapshot:
     """Immutable snapshot of all collected Fritz!Box monitoring metrics."""
 
@@ -31,6 +43,7 @@ class MonitoringSnapshot:
     wan: Optional[WanStats] = None
     dsl: Optional[DslStats] = None
     wlan: Optional[WlanStats] = None
+    wlan_channels: Tuple[WlanChannelInfo, ...] = field(default_factory=tuple)
     mesh_nodes: Tuple[Node, ...] = field(default_factory=tuple)
     devices: Tuple[Device, ...] = field(default_factory=tuple)
     collection_duration_seconds: float = 0.0
@@ -156,9 +169,10 @@ class CollectorService:
                     wan = client.get_wan_stats_typed()
                     dsl = client.router_client.get_dsl_stats()
 
-                # WLAN Multi-band Aggregation
+                # WLAN Multi-band Aggregation & Spectrum Channel Info
                 with trace_span("fritz.get_wlan"):
                     wlan_list = client.wlan_client.get_wlan_stats()
+                    wlan_channels: list[WlanChannelInfo] = []
                     if wlan_list:
                         clients_list = [
                             w.connected_clients
@@ -183,6 +197,41 @@ class CollectorService:
                             connected_clients=sum(clients_list) if clients_list else None,
                             ssid=ssids or None,
                         )
+
+                        # Extract per-band channel and spectrum interference info
+                        fc = getattr(client, "fc", None)
+                        for w in wlan_list:
+                            idx = getattr(w, "service_index", 1)
+                            band = "2.4GHz" if idx == 1 else ("5GHz" if idx == 2 else f"Band{idx}")
+                            channel = getattr(w, "channel", 0) or 0
+                            util = 0.0
+                            interf = 0.0
+                            width = 20
+                            dfs = False
+
+                            if fc is not None:
+                                try:
+                                    srv = f"WLANConfiguration{idx}"
+                                    if hasattr(fc, "services") and srv in fc.services:
+                                        info = fc.call_action(srv, "X_AVM-DE_GetWLANChannelInfo")
+                                        util = float(info.get("NewWLANUtilization", 0) or 0)
+                                        interf = float(info.get("NewNonWLANInterference", 0) or 0)
+                                        width = int(info.get("NewChannelWidth", 20) or 20)
+                                        channel = int(info.get("NewChannel", channel) or channel)
+                                except Exception:
+                                    pass
+
+                            if channel > 0:
+                                wlan_channels.append(
+                                    WlanChannelInfo(
+                                        band=band,
+                                        channel=channel,
+                                        utilization_percent=util,
+                                        interference_percent=interf,
+                                        dfs_wait_active=dfs,
+                                        channel_width_mhz=width,
+                                    )
+                                )
                     else:
                         wlan = WlanStats()
 
@@ -196,6 +245,7 @@ class CollectorService:
                     wan=wan,
                     dsl=dsl,
                     wlan=wlan,
+                    wlan_channels=tuple(wlan_channels),
                     mesh_nodes=mesh_topology.nodes,
                     devices=mesh_topology.devices,
                     collection_duration_seconds=duration,

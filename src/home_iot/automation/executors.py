@@ -66,3 +66,40 @@ def apply_hue_all_off(host: str, app_key: str) -> Tuple[bool, str]:
     except Exception as exc:  # noqa: BLE001
         logger.warning("hue all-off failed: {}", exc)
         return False, str(exc)
+
+
+def apply_smart_plug_power_cycle(
+    fritz_host: str, fritz_user: str, fritz_password: str, ain: str, duration_s: float = 10.0
+) -> Tuple[bool, str]:
+    """Power-cycle a smart plug (e.g. FRITZ!DECT 200/210) to reboot a frozen repeater."""
+    import time
+    try:
+        from fritzconnection import FritzConnection
+        fc = FritzConnection(address=fritz_host, user=fritz_user, password=fritz_password)
+        # Turn off
+        fc.call_action("X_AVM-DE_Homeauto1", "SetSwitch", NewAIN=ain, NewSwitchState="OFF")
+        time.sleep(min(30.0, max(1.0, duration_s)))
+        # Turn on
+        fc.call_action("X_AVM-DE_Homeauto1", "SetSwitch", NewAIN=ain, NewSwitchState="ON")
+        return True, f"smart plug {ain} power-cycled ({duration_s}s)"
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("smart plug power cycle failed: {}", exc)
+        return False, str(exc)
+
+
+def apply_fritz_guest_wifi_disable(
+    fritz_host: str, fritz_user: str, fritz_password: str
+) -> Tuple[bool, str]:
+    """Disable the guest Wi-Fi network when idle."""
+    try:
+        from fritzconnection import FritzConnection
+        fc = FritzConnection(address=fritz_host, user=fritz_user, password=fritz_password)
+        # WLANConfiguration:3 is guest Wi-Fi on most FRITZ!Box models
+        for srv in ("WLANConfiguration3", "WLANConfiguration4"):
+            if hasattr(fc, "services") and srv in fc.services:
+                fc.call_action(srv, "SetEnable", NewEnable=False)
+        return True, "guest Wi-Fi disabled"
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("guest wifi disable failed: {}", exc)
+        return False, str(exc)
+

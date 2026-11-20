@@ -33,6 +33,8 @@ _SNAPSHOT_QUERIES = {
     "setpoint_min": "min(bosch_device_setpoint_celsius)",
     "setpoint_max": "max(bosch_device_setpoint_celsius)",
     "lights_on": "sum(hue_light_on)",
+    "mesh_node_offline_count": "count(fritz_mesh_node_online == 0) or vector(0)",
+    "guest_wifi_clients": "count(fritz_device_up{interface=~\"guest.*|wlan.*guest\"} == 1) or vector(0)",
 }
 
 

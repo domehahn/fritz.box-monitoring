@@ -24,6 +24,8 @@ class Snapshot:
     setpoint_min: Optional[float] = None
     setpoint_max: Optional[float] = None
     lights_on: Optional[float] = None
+    mesh_node_offline_count: Optional[float] = None
+    guest_wifi_clients: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -113,10 +115,39 @@ def _lights_off_build(s: Snapshot, t: Tunables) -> Action:
     return Action("hue_all_off", {}, "turn off all Hue lights")
 
 
+def _repeater_reboot_check(s: Snapshot, _t: Tunables) -> Optional[str]:
+    offline = s.mesh_node_offline_count
+    if offline is not None and offline >= 1.0:
+        return f"{int(offline)} mesh node(s) offline: trigger power-cycle remediation"
+    return None
+
+
+def _repeater_reboot_build(_s: Snapshot, _t: Tunables) -> Action:
+    return Action(
+        "smart_plug_power_cycle",
+        {"duration_s": 10.0},
+        "power-cycle smart plug to recover offline repeater",
+    )
+
+
+def _guest_wifi_idle_check(s: Snapshot, _t: Tunables) -> Optional[str]:
+    guest = s.guest_wifi_clients
+    win = s.occupied_window_max
+    if guest is not None and guest == 0.0 and win is not None and win == 0.0:
+        return "nobody home and guest Wi-Fi idle: disable guest Wi-Fi"
+    return None
+
+
+def _guest_wifi_idle_build(_s: Snapshot, _t: Tunables) -> Action:
+    return Action("fritz_guest_wifi_disable", {}, "disable idle guest Wi-Fi")
+
+
 RULES: List[Rule] = [
     Rule("away_heating_setback", 1800.0, _away_setback_check, _away_setback_build),
     Rule("home_heating_restore", 900.0, _home_restore_check, _home_restore_build),
     Rule("away_lights_off", 900.0, _lights_off_check, _lights_off_build),
+    Rule("repeater_reboot_remediation", 1800.0, _repeater_reboot_check, _repeater_reboot_build),
+    Rule("guest_wifi_idle_remediation", 3600.0, _guest_wifi_idle_check, _guest_wifi_idle_build),
 ]
 
 

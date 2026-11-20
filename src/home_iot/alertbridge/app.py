@@ -49,6 +49,11 @@ def _cfg() -> Dict[str, str]:
         "topic": read_secret(env_str("NTFY_TOPIC")),
         "token": read_secret(env_str("NTFY_TOKEN")),
         "deadman_url": env_str("DEADMAN_URL"),
+        "telegram_token": read_secret(env_str("TELEGRAM_BOT_TOKEN")),
+        "telegram_chat_id": env_str("TELEGRAM_CHAT_ID"),
+        "pushover_user": read_secret(env_str("PUSHOVER_USER_KEY")),
+        "pushover_token": read_secret(env_str("PUSHOVER_API_TOKEN")),
+        "discord_webhook": read_secret(env_str("DISCORD_WEBHOOK_URL")),
     }
 
 
@@ -86,27 +91,106 @@ def _ascii(text: str) -> str:
 
 
 def _publish(cfg: Dict[str, str], title: str, body: str, prio: str, tags: str) -> None:
-    headers: Dict[str, str] = {
-        "Title": _ascii(title),
-        "Priority": prio,
-        "Tags": tags,
-        "Markdown": "yes",
-    }
-    if cfg["token"]:
-        headers["Authorization"] = f"Bearer {cfg['token']}"
-    resp = requests.post(
-        f"{cfg['url']}/{cfg['topic']}",
-        data=body.encode("utf-8"),
-        headers=headers,
-        timeout=10,
-    )
-    resp.raise_for_status()
+    sent_any = False
+    errors: list[str] = []
+
+    # 1. ntfy.sh
+    if cfg.get("topic"):
+        headers: Dict[str, str] = {
+            "Title": _ascii(title),
+            "Priority": prio,
+            "Tags": tags,
+            "Markdown": "yes",
+        }
+        if cfg.get("token"):
+            headers["Authorization"] = f"Bearer {cfg['token']}"
+        try:
+            resp = requests.post(
+                f"{cfg['url']}/{cfg['topic']}",
+                data=body.encode("utf-8"),
+                headers=headers,
+                timeout=10,
+            )
+            resp.raise_for_status()
+            sent_any = True
+        except Exception as exc:
+            errors.append(f"ntfy: {exc}")
+
+    # 2. Telegram
+    if cfg.get("telegram_token") and cfg.get("telegram_chat_id"):
+        try:
+            tg_text = f"*{title}*\n\n{body}"
+            resp = requests.post(
+                f"https://api.telegram.org/bot{cfg['telegram_token']}/sendMessage",
+                json={
+                    "chat_id": cfg["telegram_chat_id"],
+                    "text": tg_text,
+                    "parse_mode": "Markdown",
+                    "disable_web_page_preview": True,
+                },
+                timeout=10,
+            )
+            resp.raise_for_status()
+            sent_any = True
+        except Exception as exc:
+            errors.append(f"telegram: {exc}")
+
+    # 3. Pushover
+    if cfg.get("pushover_user") and cfg.get("pushover_token"):
+        try:
+            po_prio = int(prio) - 3  # ntfy 1-5 -> pushover -2 to 2
+            resp = requests.post(
+                "https://api.pushover.net/1/messages.json",
+                data={
+                    "token": cfg["pushover_token"],
+                    "user": cfg["pushover_user"],
+                    "title": title,
+                    "message": body,
+                    "priority": po_prio,
+                },
+                timeout=10,
+            )
+            resp.raise_for_status()
+            sent_any = True
+        except Exception as exc:
+            errors.append(f"pushover: {exc}")
+
+    # 4. Discord Webhook
+    if cfg.get("discord_webhook"):
+        try:
+            color = 15158332 if "CRITICAL" in title else (15105570 if "WARNING" in title else 3447003)
+            resp = requests.post(
+                cfg["discord_webhook"],
+                json={
+                    "embeds": [
+                        {
+                            "title": title,
+                            "description": body,
+                            "color": color,
+                        }
+                    ]
+                },
+                timeout=10,
+            )
+            resp.raise_for_status()
+            sent_any = True
+        except Exception as exc:
+            errors.append(f"discord: {exc}")
+
+    if not sent_any and errors:
+        raise RuntimeError("; ".join(errors))
 
 
 async def handle_alert(request: web.Request) -> web.Response:
     cfg = _cfg()
-    if not cfg["topic"]:
-        return web.Response(status=503, text="NTFY_TOPIC not configured")
+    has_target = bool(
+        cfg.get("topic")
+        or (cfg.get("telegram_token") and cfg.get("telegram_chat_id"))
+        or (cfg.get("pushover_user") and cfg.get("pushover_token"))
+        or cfg.get("discord_webhook")
+    )
+    if not has_target:
+        return web.Response(status=503, text="No alert notification channel configured")
     try:
         payload = await request.json()
     except Exception:  # noqa: BLE001
@@ -142,8 +226,14 @@ async def handle_watchdog(request: web.Request) -> web.Response:
 
 async def handle_test(_request: web.Request) -> web.Response:
     cfg = _cfg()
-    if not cfg["topic"]:
-        return web.Response(status=503, text="NTFY_TOPIC not configured")
+    has_target = bool(
+        cfg.get("topic")
+        or (cfg.get("telegram_token") and cfg.get("telegram_chat_id"))
+        or (cfg.get("pushover_user") and cfg.get("pushover_token"))
+        or cfg.get("discord_webhook")
+    )
+    if not has_target:
+        return web.Response(status=503, text="No alert notification channel configured")
     _publish(
         cfg,
         "✅ Alert bridge test",

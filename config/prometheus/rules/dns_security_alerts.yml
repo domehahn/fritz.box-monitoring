@@ -1,0 +1,22 @@
+groups:
+  - name: dns_security_alerts
+    rules:
+      - alert: DNSQuerySpike
+        expr: (rate(pihole_dns_queries_total[2m]) > 250) or (rate(adguard_dns_queries_total[2m]) > 250)
+        for: 2m
+        labels:
+          severity: warning
+          category: dns_security
+        annotations:
+          summary: "Ungewöhnlich hohe DNS-Abfragerate im Heimnetz (>250 Queries/s)"
+          description: "Ein Gerät sendet massenhaft DNS-Abfragen. Mögliche Ursache: Malware, DNS-Amplification oder fehlerhafte IoT-Endlosschleife."
+
+      - alert: DNSAdblockRatioLow
+        expr: (pihole_ads_percentage_today < 5 and pihole_dns_queries_today > 1000) or (adguard_blocked_filtering_percentage < 5 and adguard_dns_queries_total > 1000)
+        for: 30m
+        labels:
+          severity: info
+          category: dns_security
+        annotations:
+          summary: "Geringe DNS-Blockierquote (<5%)"
+          description: "Pi-hole / AdGuard Home blockiert ungewöhnlich wenige Werbe- oder Tracking-Domains. Bitte Filterlisten-Aktualisierung prüfen."

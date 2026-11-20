@@ -8,6 +8,12 @@ Production-grade observability stack for AVM FRITZ!Box routers, mesh repeaters, 
 
 - **Full LGTM Observability Stack**: Prometheus (metrics), Loki (logs), Tempo (traces), Grafana (dashboards) and Grafana Alloy with correlation between logs and traces.
 - **Deep Mesh Diagnostics & Offline/Power-Loss Detection**: Persistent inventory of all known repeaters, detection of offline/unplugged repeaters, multi-hop hierarchy, link speed matrix (RX/TX), and band-fallback root-cause analysis.
+- **Wi-Fi Spectrum & Interference Tracking**: Real-time channel load, non-Wi-Fi interference, bandwidth (MHz), and DFS radar wait monitoring.
+- **Multi-Channel Push Notifications**: Push alerts to Telegram, Pushover, Discord, and ntfy via Alertmanager bridge.
+- **External Cloudflare Synthetic Monitor**: Global edge healthcheck detecting home power/internet outages from the outside.
+- **DNS Security & Adblocking**: Optional Pi-hole and AdGuard Home exporter integration with threat detection rules.
+- **ISP SLA & Quality Audit**: 30-day contract compliance tracking, bufferbloat latency-under-load analysis, and dispute protocols.
+- **Self-Healing & Remediation**: Automated smart-plug power-cycles for offline repeaters and idle guest Wi-Fi deactivation.
 - **Cloudflare Zero Trust & Tunnel**: Secure remote access with zero open router ports, Cloudflare Access authentication, and Grafana Auth-Proxy Single Sign-On.
 - **Decoupled Architecture**: Asynchronous background collector with atomic snapshot swaps. Fast, deterministic `/metrics` scrapes without TR-064 timeouts.
 - **Syslog Logging Pipeline**: RFC3164 Syslog UDP ingestion via Grafana Alloy to Loki (persisted under `/loki` TSDB v13).

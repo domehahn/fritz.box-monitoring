@@ -1,0 +1,270 @@
+{
+  "uid": "isp_sla_report",
+  "title": "ISP SLA & Quality Audit Report",
+  "tags": [
+    "isp",
+    "sla",
+    "speedtest",
+    "bufferbloat",
+    "noc"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "time": {
+    "from": "now-30d",
+    "to": "now"
+  },
+  "editable": true,
+  "graphTooltip": 1,
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Vertragserfüllung & SLA (Reale vs. bezahlte Bandbreite)",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "30-Tage Download SLA-Erfüllung",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 1, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "clamp_max(isp:attainment:down_ratio:avg30d, 1.5) * 100",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 75 },
+              { "color": "green", "value": 90 }
+            ]
+          }
+        }
+      },
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "30-Tage Upload SLA-Erfüllung",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 6, "y": 1, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "clamp_max(isp:attainment:up_ratio:avg30d, 1.5) * 100",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 75 },
+              { "color": "green", "value": 90 }
+            ]
+          }
+        }
+      },
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Referenz/Vertrag Download",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 12, "y": 1, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "isp:reference:down_mbps",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Mbits",
+          "color": { "mode": "fixed", "fixedColor": "blue" }
+        }
+      },
+      "options": { "colorMode": "value", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Referenz/Vertrag Upload",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 18, "y": 1, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "isp:reference:up_mbps",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Mbits",
+          "color": { "mode": "fixed", "fixedColor": "blue" }
+        }
+      },
+      "options": { "colorMode": "value", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Bandbreiten-Verlauf vs. Vertrags-Soll (Mbit/s)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 5, "w": 24, "h": 8 },
+      "targets": [
+        {
+          "expr": "isp:measured:down_mbps",
+          "legendFormat": "Gemessen Download",
+          "refId": "A"
+        },
+        {
+          "expr": "isp:reference:down_mbps",
+          "legendFormat": "Soll Download (Vertrag)",
+          "refId": "B"
+        },
+        {
+          "expr": "isp:measured:up_mbps",
+          "legendFormat": "Gemessen Upload",
+          "refId": "C"
+        },
+        {
+          "expr": "isp:reference:up_mbps",
+          "legendFormat": "Soll Upload (Vertrag)",
+          "refId": "D"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Mbits",
+          "custom": { "drawStyle": "line", "lineInterpolation": "smooth" }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "Bufferbloat & Latenz unter Last (Quality of Experience)",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 13, "w": 24, "h": 1 }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Latenz: Ruhe vs. Download-Last vs. Upload-Last (ms)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 14, "w": 16, "h": 8 },
+      "targets": [
+        {
+          "expr": "bufferbloat_unloaded_latency_seconds * 1000",
+          "legendFormat": "Latenz ohne Last (Idle)",
+          "refId": "A"
+        },
+        {
+          "expr": "bufferbloat_download_latency_seconds * 1000",
+          "legendFormat": "Latenz unter Download-Last",
+          "refId": "B"
+        },
+        {
+          "expr": "bufferbloat_upload_latency_seconds * 1000",
+          "legendFormat": "Latenz unter Upload-Last",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": { "drawStyle": "line", "lineInterpolation": "smooth" }
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Latenzzuwachs unter Last (Bufferbloat Delta)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 16, "y": 14, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "(bufferbloat_download_latency_seconds - bufferbloat_unloaded_latency_seconds) * 1000",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 30 },
+              { "color": "red", "value": 80 }
+            ]
+          }
+        }
+      },
+      "options": { "colorMode": "background", "reduceOptions": { "calcs": ["lastNotNull"] } }
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "Ausfall- & Störungsprotokoll (Provider-Beschwerdenachweis)",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 22, "w": 24, "h": 1 }
+    },
+    {
+      "id": 11,
+      "type": "table",
+      "title": "Verbindungsabbrüche & Reconnects (letzte 30 Tage)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 23, "w": 24, "h": 8 },
+      "targets": [
+        {
+          "expr": "ALERTS{alertname=~\"FritzWan.*|FritzScrape.*|ISPSpeedBelowContract\"}",
+          "format": "table",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": false,
+              "__name__": true,
+              "job": true,
+              "instance": true,
+              "Value": true
+            },
+            "renameByName": {
+              "alertname": "Ereignis / Störungsart",
+              "severity": "Schweregrad",
+              "summary": "Zusammenfassung",
+              "description": "Details"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

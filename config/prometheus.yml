@@ -243,3 +243,14 @@ scrape_configs:
     scrape_interval: 60s
     static_configs:
       - targets: ['bufferbloat-exporter:9132']
+
+  # DNS Security & Adblocking (compose --profile pihole or --profile adguard).
+  - job_name: 'pihole_exporter'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['pihole-exporter:9617']
+
+  - job_name: 'adguard_exporter'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['adguard-exporter:9618']
