@@ -660,7 +660,34 @@ def test_alertbridge_multichannel_publish(monkeypatch):
         mock_resp.status_code = 200
         return mock_resp
 
+    def mock_get(url, **kwargs):
+        calls.append((url, kwargs))
+        mock_resp = app.requests.Response()
+        mock_resp.status_code = 200
+        return mock_resp
+
+    class DummySMTP:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def starttls(self):
+            pass
+
+        def login(self, user, pwd):
+            pass
+
+        def send_message(self, msg):
+            calls.append(("smtp://" + msg["To"], {"subject": msg["Subject"]}))
+
     monkeypatch.setattr(app.requests, "post", mock_post)
+    monkeypatch.setattr(app.requests, "get", mock_get)
+    monkeypatch.setattr("smtplib.SMTP", DummySMTP)
 
     cfg = {
         "url": "https://ntfy.sh",
@@ -671,17 +698,23 @@ def test_alertbridge_multichannel_publish(monkeypatch):
         "pushover_user": "po_user_123",
         "pushover_token": "po_token_123",
         "discord_webhook": "https://discord.com/api/webhooks/xyz",
+        "whatsapp_phone": "+491701234567",
+        "whatsapp_api_key": "wa_key_123",
+        "smtp_host": "smtp.example.com",
+        "smtp_to": "admin@example.com",
     }
 
     app._publish(cfg, "Test Title", "Test Body", "4", "warning")
 
-    # All 4 channels should have been called!
-    assert len(calls) == 4
+    # All 6 channels (ntfy, telegram, pushover, discord, whatsapp, email) should have been called!
+    assert len(calls) == 6
     called_urls = [c[0] for c in calls]
     assert "https://ntfy.sh/test_topic" in called_urls
     assert "https://api.telegram.org/bottg_token_123/sendMessage" in called_urls
     assert "https://api.pushover.net/1/messages.json" in called_urls
     assert "https://discord.com/api/webhooks/xyz" in called_urls
+    assert "https://api.callmebot.com/whatsapp.php" in called_urls
+    assert "smtp://admin@example.com" in called_urls
 
 
 

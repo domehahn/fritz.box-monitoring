@@ -94,9 +94,30 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
 
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    restart: unless-stopped
+    volumes:
+      - ./config/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+
+  alertbridge:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.home_iot
+    command: ["python", "-m", "home_iot.alertbridge"]
+    env_file:
+      - .env
+      - .env.production
+    restart: unless-stopped
+
 volumes:
   prometheus_data:
   loki_data:
   tempo_data:
   grafana_data:
+  alertmanager_data:
 

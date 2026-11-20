@@ -54,6 +54,14 @@ def _cfg() -> Dict[str, str]:
         "pushover_user": read_secret(env_str("PUSHOVER_USER_KEY")),
         "pushover_token": read_secret(env_str("PUSHOVER_API_TOKEN")),
         "discord_webhook": read_secret(env_str("DISCORD_WEBHOOK_URL")),
+        "whatsapp_phone": env_str("WHATSAPP_PHONE"),
+        "whatsapp_api_key": read_secret(env_str("WHATSAPP_API_KEY")),
+        "smtp_host": env_str("SMTP_HOST"),
+        "smtp_port": env_str("SMTP_PORT", "587"),
+        "smtp_user": env_str("SMTP_USER"),
+        "smtp_password": read_secret(env_str("SMTP_PASSWORD")),
+        "smtp_to": env_str("EMAIL_TO"),
+        "smtp_from": env_str("SMTP_FROM"),
     }
 
 
@@ -177,6 +185,46 @@ def _publish(cfg: Dict[str, str], title: str, body: str, prio: str, tags: str) -
         except Exception as exc:
             errors.append(f"discord: {exc}")
 
+    # 5. WhatsApp (CallMeBot)
+    if cfg.get("whatsapp_phone") and cfg.get("whatsapp_api_key"):
+        try:
+            wa_text = f"*{title}*\n\n{body}"
+            resp = requests.get(
+                "https://api.callmebot.com/whatsapp.php",
+                params={
+                    "phone": cfg["whatsapp_phone"],
+                    "text": wa_text,
+                    "apikey": cfg["whatsapp_api_key"],
+                },
+                timeout=15,
+            )
+            resp.raise_for_status()
+            sent_any = True
+        except Exception as exc:
+            errors.append(f"whatsapp: {exc}")
+
+    # 6. Email (SMTP)
+    if cfg.get("smtp_host") and cfg.get("smtp_to"):
+        try:
+            import smtplib
+            from email.message import EmailMessage
+
+            msg = EmailMessage()
+            msg["Subject"] = title
+            msg["From"] = cfg.get("smtp_from") or cfg.get("smtp_user") or "alerts@fritz.monitoring"
+            msg["To"] = cfg["smtp_to"]
+            msg.set_content(body)
+
+            port = int(cfg.get("smtp_port") or 587)
+            with smtplib.SMTP(cfg["smtp_host"], port, timeout=15) as s:
+                s.starttls()
+                if cfg.get("smtp_user") and cfg.get("smtp_password"):
+                    s.login(cfg["smtp_user"], cfg["smtp_password"])
+                s.send_message(msg)
+            sent_any = True
+        except Exception as exc:
+            errors.append(f"smtp_email: {exc}")
+
     if not sent_any and errors:
         raise RuntimeError("; ".join(errors))
 
@@ -188,6 +236,8 @@ async def handle_alert(request: web.Request) -> web.Response:
         or (cfg.get("telegram_token") and cfg.get("telegram_chat_id"))
         or (cfg.get("pushover_user") and cfg.get("pushover_token"))
         or cfg.get("discord_webhook")
+        or (cfg.get("whatsapp_phone") and cfg.get("whatsapp_api_key"))
+        or (cfg.get("smtp_host") and cfg.get("smtp_to"))
     )
     if not has_target:
         return web.Response(status=503, text="No alert notification channel configured")
